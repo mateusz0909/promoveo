@@ -1,0 +1,52 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// NOTE: This User model mirrors the 'auth.users' table from Supabase.
+// We manage its creation through Supabase Auth, but use this model for relations.
+model User {
+  id        String    @id @default(uuid()) // Corresponds to the Supabase auth user ID
+  email     String?   @unique
+  createdAt DateTime? @map("created_at")
+
+  projects Project[] // A user can have many projects
+}
+
+model Project {
+  id                  String    @id @default(cuid())
+  name                String
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  inputAppName        String
+  inputAppDescription String
+  language            String?
+  device              String?
+  generatedAsoText    Json? // Stores headings, descriptions, keywords as JSON
+
+  // Relation to the user who owns it
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  generatedImages GeneratedImage[] // A project can have many images
+}
+
+model GeneratedImage {
+  id                  String   @id @default(cuid())
+  createdAt           DateTime @default(now())
+  sourceScreenshotUrl String
+  generatedImageUrl   String
+  accentColor         String?  // To store the background accent color
+  configuration       Json?    // Stores { "heading": "...", "font": "..." }
+
+  // Relation to the project it belongs to
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+}
