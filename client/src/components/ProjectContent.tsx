@@ -1,12 +1,11 @@
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { ImagesTab } from './tabs/ImagesTab';
+import { AppStoreContentTab } from './tabs/AppStoreContentTab';
+import { ProjectOverviewTab } from './tabs/ProjectOverviewTab';
+import { ImageEditor } from './ImageEditor';
 import { toast } from "sonner";
-import { useEffect, useState } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAuth } from "../context/AuthContext";
-import { useNavigate } from "react-router-dom";
-import { ImageEditor } from "./ImageEditor";
-import { ImagesTab } from "./tabs/ImagesTab";
-import { AppStoreContentTab } from "./tabs/AppStoreContentTab";
-import { ProjectOverviewTab } from "./tabs/ProjectOverviewTab";
+import { useAuth } from '../context/AuthContext';
 
 interface GeneratedText {
   title: string;
@@ -20,7 +19,7 @@ interface GeneratedText {
   }[];
 }
 
-interface Step3Props {
+interface ProjectContentProps {
   appName: string;
   appDescription: string;
   generatedText: GeneratedText | null;
@@ -36,9 +35,10 @@ interface Step3Props {
   updatedAt?: string;
 }
 
-export const Step3 = ({ appName, appDescription, generatedText, generatedImages, setAppName, setAppDescription, setGeneratedText, onImageSave, projectId, device, language, createdAt, updatedAt }: Step3Props) => {
-  const { session } = useAuth();
+export const ProjectContent: React.FC<ProjectContentProps> = (props) => {
+  const location = useLocation();
   const navigate = useNavigate();
+  const { session } = useAuth();
   const [fonts, setFonts] = useState<string[]>([]);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<any>(null);
@@ -46,8 +46,8 @@ export const Step3 = ({ appName, appDescription, generatedText, generatedImages,
   const [imageList, setImageList] = useState<any[]>([]);
 
   useEffect(() => {
-    setImageList(generatedImages);
-  }, [generatedImages]);
+    setImageList(props.generatedImages);
+  }, [props.generatedImages]);
 
   useEffect(() => {
     fetch("http://localhost:3001/api/fonts")
@@ -56,20 +56,36 @@ export const Step3 = ({ appName, appDescription, generatedText, generatedImages,
       .catch(err => console.error("Error fetching fonts:", err));
   }, []);
 
+  // Determine which content to show based on URL
+  const getCurrentView = () => {
+    const path = location.pathname;
+    
+    // Check for explicit sub-routes
+    if (path.includes('/text-content')) {
+      return 'content';
+    } else if (path.includes('/details')) {
+      return 'overview';
+    } else if (path.includes('/images') || path.match(/\/project\/[^/]+$/)) {
+      // Default to images for base project route or explicit images route
+      return 'images';
+    }
+    
+    // Fallback to images
+    return 'images';
+  };
+
+  // Handler functions from Step3
   const handleImageSave = async (newImageUrl: string, imageIndex: number, configuration: any) => {
     const newImageList = [...imageList];
     const imageToUpdate = newImageList[imageIndex];
     const oldImageUrl = imageToUpdate.generatedImageUrl;
     
-    // Update with new immutable URL
     imageToUpdate.generatedImageUrl = newImageUrl;
     imageToUpdate.configuration = configuration;
     setImageList(newImageList);
 
-    // Call the original onImageSave to update the parent state
-    await onImageSave(newImageUrl, imageIndex, configuration);
+    await props.onImageSave(newImageUrl, imageIndex, configuration);
 
-    // Force invalidate old cached image if it exists in browser cache
     if (oldImageUrl && 'caches' in window) {
       try {
         const cacheNames = await caches.keys();
@@ -116,13 +132,13 @@ export const Step3 = ({ appName, appDescription, generatedText, generatedImages,
     setIsEditorOpen(true);
   };
 
-  const handleCopy = (text: string) => {
+  const handleCopy = useCallback((text: string) => {
     navigator.clipboard.writeText(text);
     toast("Copied to clipboard!");
-  };
+  }, []);
 
   const handleDownloadAll = async () => {
-    if (generatedImages.length === 0) {
+    if (props.generatedImages.length === 0) {
       toast.info("No images to download.");
       return;
     }
@@ -130,7 +146,7 @@ export const Step3 = ({ appName, appDescription, generatedText, generatedImages,
     toast.info("Preparing images for download...");
 
     try {
-      const fullImageUrls = generatedImages.map(image => image.generatedImageUrl);
+      const fullImageUrls = props.generatedImages.map(image => image.generatedImageUrl);
 
       const response = await fetch("http://localhost:3001/api/download-images-zip", {
         method: "POST",
@@ -162,12 +178,12 @@ export const Step3 = ({ appName, appDescription, generatedText, generatedImages,
   };
 
   const handleDeleteProject = async () => {
-    if (!projectId) {
+    if (!props.projectId) {
       toast.error("No project selected.");
       return;
     }
     try {
-      const response = await fetch(`http://localhost:3001/api/projects/${projectId}`, {
+      const response = await fetch(`http://localhost:3001/api/projects/${props.projectId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${session?.access_token}`
@@ -186,12 +202,11 @@ export const Step3 = ({ appName, appDescription, generatedText, generatedImages,
     }
   }
 
-  const handleContentUpdate = (contentType: string, newContent: string) => {
-    if (!generatedText) return;
+  const handleContentUpdate = async (contentType: string, newContent: string) => {
+    if (!props.generatedText || !props.projectId) return;
     
-    const updatedText = { ...generatedText };
+    const updatedText = { ...props.generatedText };
     
-    // Handle the different content types properly
     switch (contentType) {
       case 'title':
         updatedText.title = newContent;
@@ -213,56 +228,88 @@ export const Step3 = ({ appName, appDescription, generatedText, generatedImages,
         return;
     }
     
-    setGeneratedText(updatedText);
+    // Update local state immediately for responsive UI
+    props.setGeneratedText(updatedText);
+
+    // Persist changes to database
+    try {
+      const response = await fetch(`/api/projects/${props.projectId}/content`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          generatedAsoText: updatedText
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save changes to database');
+      }
+
+      console.log('Content updated and saved to database successfully');
+    } catch (error) {
+      console.error('Error saving content to database:', error);
+      toast.error('Failed to save changes. Please try again.');
+      // Optionally revert the local state change on error
+      // props.setGeneratedText(props.generatedText);
+    }
   };
 
+  // Memoize imageDescriptions to prevent unnecessary re-renders
+  const imageDescriptions = useMemo(() => {
+    return props.generatedImages.map(img => img.description || '');
+  }, [props.generatedImages]);
+
+  // Memoize handleContentUpdate to prevent ContentSection re-renders
+  const memoizedHandleContentUpdate = useCallback(handleContentUpdate, [
+    props.generatedText, 
+    props.projectId, 
+    props.setGeneratedText, 
+    session?.access_token
+  ]);
+
+  const currentView = getCurrentView();
+
+  // Render appropriate content based on current view (controlled by sidebar navigation)
   return (
     <div className="w-full">
-      <Tabs defaultValue="images">
-        <TabsList className='bg-background border'>
-          <TabsTrigger 
-          value="images"
-          className='data-[state=active]:bg-secondary dark:data-[state=active]:bg-secondary data-[state=active]:text-primary-foreground dark:data-[state=active]:text-primary-foreground dark:data-[state=active]:border-transparent'> Images</TabsTrigger>
-          <TabsTrigger value="text-content"
-          className='data-[state=active]:bg-secondary dark:data-[state=active]:bg-secondary  data-[state=active]:text-primary-foreground dark:data-[state=active]:text-primary-foreground dark:data-[state=active]:border-transparent'>App Store Content</TabsTrigger>
-          <TabsTrigger value="project-details"
-          className='data-[state=active]:bg-secondary dark:data-[state=active]:bg-secondary  data-[state=active]:text-primary-foreground dark:data-[state=active]:text-primary-foreground dark:data-[state=active]:border-transparent'>
-            Project Overview</TabsTrigger>
-        </TabsList>
-        <TabsContent value="images" className="w-full">
-          <ImagesTab 
-            imageList={imageList}
-            onDownloadAll={handleDownloadAll}
-            onDownloadSingle={handleDownloadSingleImage}
-            onEdit={handleEdit}
-          />
-        </TabsContent>
-        <TabsContent value="text-content" className="w-full">
-          <AppStoreContentTab 
-            generatedText={generatedText}
-            onCopy={handleCopy}
-            appName={appName}
-            appDescription={appDescription}
-            imageDescriptions={generatedImages.map(img => img.description || '')}
-            onContentUpdate={handleContentUpdate}
-          />
-        </TabsContent>
-        <TabsContent value="project-details" className="w-full">
-          <ProjectOverviewTab 
-            appName={appName}
-            appDescription={appDescription}
-            generatedImages={generatedImages}
-            onAppNameChange={setAppName}
-            onAppDescriptionChange={setAppDescription}
-            onDeleteProject={handleDeleteProject}
-            projectId={projectId}
-            createdAt={createdAt}
-            updatedAt={updatedAt}
-            language={language}
-            device={device}
-          />
-        </TabsContent>
-      </Tabs>
+      {currentView === 'content' && (
+        <AppStoreContentTab 
+          generatedText={props.generatedText}
+          onCopy={handleCopy}
+          appName={props.appName}
+          appDescription={props.appDescription}
+          imageDescriptions={imageDescriptions}
+          onContentUpdate={memoizedHandleContentUpdate}
+        />
+      )}
+      
+      {currentView === 'overview' && (
+        <ProjectOverviewTab 
+          appName={props.appName}
+          appDescription={props.appDescription}
+          generatedImages={props.generatedImages}
+          onAppNameChange={props.setAppName}
+          onAppDescriptionChange={props.setAppDescription}
+          onDeleteProject={handleDeleteProject}
+          projectId={props.projectId}
+          createdAt={props.createdAt}
+          updatedAt={props.updatedAt}
+          language={props.language}
+          device={props.device}
+        />
+      )}
+      
+      {currentView === 'images' && (
+        <ImagesTab 
+          imageList={imageList}
+          onDownloadAll={handleDownloadAll}
+          onDownloadSingle={handleDownloadSingleImage}
+          onEdit={handleEdit}
+        />
+      )}
 
       <ImageEditor
         isOpen={isEditorOpen}
@@ -271,8 +318,8 @@ export const Step3 = ({ appName, appDescription, generatedText, generatedImages,
         imageIndex={selectedImageIndex}
         fonts={fonts}
         onSave={handleImageSave}
-        projectId={projectId}
-        device={device}
+        projectId={props.projectId}
+        device={props.device}
       />
     </div>
   );

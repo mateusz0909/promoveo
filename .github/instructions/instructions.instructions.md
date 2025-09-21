@@ -24,10 +24,11 @@ applyTo: '**'
 ### Tech Stack
 **Frontend (Client):**
 - **React 19.1.1** - Latest React with concurrent features and improved performance
-- **TypeScript** - Type safety and enhanced developer experience
+- **TypeScript 5.8.3** - Type safety and enhanced developer experience
 - **Vite 7.1.2** - Ultra-fast build tool with hot module replacement
 - **Tailwind CSS 4.1.13** - Latest utility-first CSS framework with enhanced features
 - **shadcn/ui** - Modern component library built on Radix UI primitives
+- **React Router Dom 7.9.1** - Client-side routing with modern patterns
 
 **Backend (Server):**
 - **Node.js** - Server runtime environment
@@ -35,6 +36,8 @@ applyTo: '**'
 - **Prisma 6.16.1** - Modern database toolkit and ORM
 - **Supabase** - Backend-as-a-service with PostgreSQL and authentication
 - **Gemini AI (@google/genai 1.19.0)** - Google's latest AI model for content generation
+- **Canvas 3.2.0** - Server-side image generation and manipulation
+- **Node Vibrant 4.0.3** - Color analysis and extraction from images
 
 **Development Tools:**
 - **npm Workspaces** - Monorepo management with shared dependencies
@@ -220,7 +223,55 @@ When adding fonts, ensure consistency:
 2. Use standard naming: `FontName-Regular.ttf`, `FontName-Bold.ttf`
 3. Update CSS @font-face in `/client/src/index.css`
 4. Update font mapping in `/server/services/imageGenerationService.js`
+```bash
+# Root level - runs both client and server
+npm run dev
 
+# Individual services
+npm run dev --workspace=client  # Vite dev server (port 5173)
+npm run dev --workspace=server  # Nodemon (port 3001)
+```
+
+### Database Workflows
+```bash
+# Apply schema changes
+npx prisma migrate dev --name "migration_name"
+# Reset database (dev only)  
+npx prisma migrate reset --force
+# Generate Prisma client
+npx prisma generate
+```
+
+### Font Management
+When adding fonts, ensure consistency:
+1. Add to both `/client/public/fonts/FontName/` and `/server/assets/fonts/FontName/`
+2. Use standard naming: `FontName-Regular.ttf`, `FontName-Bold.ttf`
+3. Update CSS @font-face in `/client/src/index.css`
+4. Update font mapping in `/server/services/imageGenerationService.js`
+
+## Current API Architecture
+
+### Primary Endpoints
+- **`/api/generate-and-save`** - Core workflow endpoint (auth → upload → AI → generation → storage)
+- **`/api/regenerate-content-part`** - Individual content regeneration with focused prompts
+- **`/api/regenerate-with-ai`** - Full content regeneration with current project context
+- **`/api/projects`** - Project management (CRUD operations with user-scoped data)
+- **`/api/projects/:id/landing-page`** - Landing page generation and ZIP download
+- **`/api/images`** - Image processing, Canvas generation, and editing
+- **`/api/users`** - User management and authentication
+- **`/api/fonts`** - Available fonts endpoint with client-server mapping
+- **`/api/system`** - System utilities and health checks
+
+### Route Organization
+- **`/routes/content.js`** - Content generation, regeneration, and font endpoints
+- **`/routes/projects.js`** - Project CRUD operations and management
+- **`/routes/images.js`** - Image processing, editing, and download functionality
+- **`/routes/users.js`** - User authentication and profile management
+- **`/routes/system.js`** - System utilities and monitoring
+
+### API Patterns
+- **Modular routing** - Routes organized by domain with clear separation
+- **Controller-service separation** - Business logic in services, HTTP handling in controllers
 ## Current API Architecture
 
 ### Primary Endpoints
@@ -316,6 +367,7 @@ registerFont(fontPath, { family: fontFamily, weight: 'bold' });
 - **Content regeneration fallbacks** - Individual content part regeneration on failures with user feedback
 - **Database transaction handling** - Proper Prisma error handling with cascading deletes
 - **File upload security** - Memory storage with size limits and MIME type validation
+- **Accent color fallbacks** - Graceful fallback to default colors when color extraction fails (`#4F46E5`)
 
 ## Integration Points
 
@@ -413,6 +465,65 @@ model GeneratedImage {
 - **Individual regeneration** capabilities for fine-tuned control
 - **App Store optimization** with character limits and ASO best practices
 - **Multi-language support** for global app markets
+
+### Performance & Reliability
+- **Image optimization** with proper compression and caching
+- **Error resilience** across all external service integrations
+- **Database transaction safety** with proper error handling
+- **Background cleanup** for temporary files and old image versions
+
+## Current Development Priorities
+
+### UX/UI Excellence
+- **Modern interaction patterns** with hover states and progressive disclosure
+- **Consistent visual hierarchy** with proper content grouping
+- **Accessibility compliance** with ARIA labels and keyboard navigation
+- **Real-time feedback** for all user actions
+
+### AI Content Quality
+- **Enhanced prompting** for better formatted, structured content
+- **Individual regeneration** capabilities for fine-tuned control
+- **App Store optimization** with character limits and ASO best practices
+- **Multi-language support** for global app markets
+
+### External Dependencies
+**Client Dependencies:**
+- **@heroicons/react** - Consistent iconography across the application
+- **@radix-ui** components - Headless UI components for accessibility and interactions (Alert Dialog, Avatar, Dialog, Dropdown Menu, Label, Radio Group, Select, Separator, Slot, Switch, Tabs, Tooltip)
+- **@supabase/supabase-js** - Supabase client for authentication and storage
+- **@tailwindcss/line-clamp** - Text truncation utilities
+- **@tanstack/react-table** - Table components and data management
+- **browser-image-compression** - Client-side file optimization before upload
+- **class-variance-authority** - Type-safe component variants
+- **clsx** - Conditional className utility
+- **date-fns** - Modern date utility library for formatting
+- **embla-carousel-react** - Touch-friendly carousel components
+- **jotai** - Atomic state management (minimal usage)
+- **lucide-react** - Additional icon set for enhanced UI
+- **next-themes** - Theme switching functionality
+- **react-dropzone** - Drag-and-drop file upload interface
+- **react-lazy-load-image-component** - Performance optimization for image loading
+- **react-medium-image-zoom** - Image zoom functionality in galleries
+- **react-resizable-panels** - Layout management components
+- **sonner** - Toast notifications and user feedback
+- **tailwind-merge** - Tailwind CSS class merging utility
+- **tailwindcss-animate** - Animation utilities for Tailwind
+
+**Server Dependencies:**
+- **@google/genai** - Google Gemini AI integration for content generation
+- **@prisma/client** - Database client and ORM
+- **@supabase/supabase-js** - Server-side Supabase integration
+- **archiver** - ZIP file creation for downloadable packages
+- **axios** - HTTP client for external API requests
+- **canvas** - Server-side image generation (requires native compilation)
+- **cors** - Cross-origin resource sharing middleware
+- **dotenv** - Environment variable management
+- **ejs** - Server-side template engine for landing page generation
+- **express** - Web application framework
+- **fs-extra** - Enhanced file system operations with promises
+- **multer** - Multipart form data handling for file uploads
+- **node-vibrant** - Color analysis for dynamic backgrounds
+- **uuid** - Unique identifier generation for projects and images
 
 ### System Architecture
 - **Clean separation of concerns** with MVC pattern

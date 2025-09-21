@@ -112,7 +112,7 @@ export const ImageEditor = ({ isOpen, onClose, imageData, imageIndex, fonts, onS
           subheadingFontFamily: subheadingFont,
           headingFontSize,
           subheadingFontSize,
-          accentColor: theme.backgroundColor || imageData.accentColor,
+          accentColor: theme.backgroundColor || imageData.accentColor || '#4F46E5', // Add fallback
           headingColor: theme.headingColor,
           subheadingColor: theme.subheadingColor,
           mockupX,
@@ -272,7 +272,7 @@ export const ImageEditor = ({ isOpen, onClose, imageData, imageIndex, fonts, onS
       subheadingFontFamily: subheadingFont,
       headingFontSize,
       subheadingFontSize,
-      accentColor: theme.backgroundColor || imageData.accentColor,
+      accentColor: theme.backgroundColor || imageData.accentColor || '#4F46E5', // Add fallback
       headingColor: theme.headingColor,
       subheadingColor: theme.subheadingColor,
       mockupX,

@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Step1 } from "@/components/Step1";
 import { Step2 } from "@/components/Step2";
-import { Step3 } from "@/components/Step3";
+import { ProjectContent } from "@/components/ProjectContent";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { useBreadcrumb } from "@/context/BreadcrumbContext";
+import { useProject } from "@/context/ProjectContext";
 import { Spinner } from "@/components/ui/shadcn-io/spinner";
 
 interface GeneratedText {
@@ -20,15 +21,15 @@ interface GeneratedText {
   }[];
 }
 
-
-
 // This component will wrap the multi-step form for creating/editing a project
 export function ProjectWorkspace() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const auth = useAuth();
   const session = auth?.session;
   const { setParts } = useBreadcrumb();
+  const { setCurrentProject } = useProject();
 
   const [step, setStep] = useState(1);
   const [files, setFiles] = useState<File[]>([]);
@@ -39,7 +40,6 @@ export function ProjectWorkspace() {
   const [imageDescriptions, setImageDescriptions] = useState<string[]>([]);
   const [generatedText, setGeneratedText] = useState<GeneratedText | null>(null);
   const [generatedImages, setGeneratedImages] = useState<any[]>([]);
-  const [sourceScreenshotUrls, setSourceScreenshotUrls] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingProject, setIsLoadingProject] = useState(false);
   const [createdProjectId, setCreatedProjectId] = useState<string | undefined>();
@@ -53,6 +53,13 @@ export function ProjectWorkspace() {
       setParts([{ name: 'New Project' }]);
     }
   }, [id, appName, setParts]);
+
+  // Redirect base project route to images
+  useEffect(() => {
+    if (id && location.pathname === `/project/${id}`) {
+      navigate(`/project/${id}/images`, { replace: true });
+    }
+  }, [id, location.pathname, navigate]);
 
   useEffect(() => {
     if (id && session) {
@@ -75,11 +82,17 @@ export function ProjectWorkspace() {
           setAppDescription(project.inputAppDescription);
           setGeneratedText(project.generatedAsoText);
           setGeneratedImages(project.generatedImages);
-          setSourceScreenshotUrls(project.generatedImages.map((img: any) => img.sourceScreenshotUrl));
           setDevice(project.device || 'iPhone');
           setLanguage(project.language || 'English');
           setProjectCreatedAt(project.createdAt);
           setProjectUpdatedAt(project.updatedAt);
+
+          // Set current project in context for TopPanel
+          setCurrentProject({
+            id: project.id,
+            name: project.inputAppName,
+            device: project.device || 'iPhone'
+          });
 
           setStep(3);
 
@@ -92,8 +105,22 @@ export function ProjectWorkspace() {
       };
 
       fetchProject();
+    } else if (!id) {
+      // Clear project context when creating new project
+      setCurrentProject(null);
     }
-  }, [id, session]);
+  }, [id, session, setCurrentProject]);
+
+  // Cleanup project context when component unmounts or route changes away from projects
+  useEffect(() => {
+    return () => {
+      // Only clear if we're navigating completely away from projects
+      const currentPath = window.location.pathname;
+      if (!currentPath.startsWith('/project/')) {
+        setCurrentProject(null);
+      }
+    };
+  }, [location.pathname, setCurrentProject]);
 
 
   const handleNext = () => setStep(step + 1);
@@ -120,7 +147,6 @@ export function ProjectWorkspace() {
     setIsLoading(true);
 
     const data = new FormData();
-    data.append('projectName', appName);
     data.append('appName', appName);
     data.append('appDescription', appDescription);
     data.append('language', language);
@@ -166,12 +192,11 @@ export function ProjectWorkspace() {
       const newProject = await response.json();
       setGeneratedText(newProject.generatedAsoText);
       setGeneratedImages(newProject.generatedImages);
-      setSourceScreenshotUrls(newProject.generatedImages.map((img: any) => img.sourceScreenshotUrl));
       setCreatedProjectId(newProject.id);
       
-      // Navigate to the project-specific URL if we're creating a new project
+      // Navigate to the project images section if we're creating a new project
       if (!id && newProject.id) {
-        navigate(`/project/${newProject.id}`, { replace: true });
+        navigate(`/project/${newProject.id}/images`, { replace: true });
       }
       
       setStep(3);
@@ -183,84 +208,6 @@ export function ProjectWorkspace() {
       setIsLoading(false);
     }
   };
-
-  const handleRegenerateImages = async (options: any) => {
-    if (generatedImages.length === 0 || !generatedText) {
-      toast.error("Something went wrong. Please start over.");
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      const response = await fetch("/api/regenerate-images", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          'Authorization': `Bearer ${session?.access_token}`,
-        },
-        body: JSON.stringify({
-          generatedImages,
-          // @ts-ignore
-          headings: generatedText.headings,
-          headingFontFamily: options.headingFont,
-          subheadingFontFamily: options.subheadingFont,
-          headingFontSize: options.headingFontSize,
-          subheadingFontSize: options.subheadingFontSize,
-        }),
-      });
-
-      const data = await response.json();
-      const cacheBustedImages = data.images.map((image: any) => ({
-        ...image,
-        generatedImageUrl: `${image.generatedImageUrl}?t=${new Date().getTime()}`
-      }));
-      setGeneratedImages(cacheBustedImages);
-    } catch (error) {
-      console.error("Error regenerating images:", error);
-      toast.error("Error regenerating images. Please check the console for details.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleRegenerateWithAI = async () => {
-    if (generatedImages.length === 0 || !appName || !appDescription) {
-      toast.error("Please fill out all fields and select at least one file.");
-      return;
-    }
-    
-    setIsLoading(true);
-
-    try {
-      const response = await fetch("/api/regenerate-with-ai", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          'Authorization': `Bearer ${session?.access_token}`,
-        },
-        body: JSON.stringify({
-          generatedImages,
-          appName,
-          appDescription,
-        }),
-      });
-
-      const data = await response.json();
-      const cacheBustedImages = data.images.map((image: any) => ({
-        ...image,
-        generatedImageUrl: `${image.generatedImageUrl}?t=${new Date().getTime()}`
-      }));
-      setGeneratedText(data.text);
-      setGeneratedImages(cacheBustedImages);
-    } catch (error) {
-      console.error("Error regenerating with AI:", error);
-      toast.error("Error regenerating with AI. Please check the console for details.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
 
   if (isLoadingProject) {
     return (
@@ -300,7 +247,7 @@ export function ProjectWorkspace() {
         />
       )}
       {step === 3 && (
-        <Step3
+        <ProjectContent
           appName={appName}
           appDescription={appDescription}
           generatedText={generatedText}

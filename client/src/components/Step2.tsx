@@ -60,21 +60,22 @@ export const Step2 = ({ files, imageDescriptions, setImageDescriptions, onGenera
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Step 2: Describe Your Screenshots</CardTitle>
-        <CardDescription>
-          Provide a brief description for each screenshot. This helps the AI understand the context and generate more accurate and compelling headings.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div className="w-full">
+      <Card>
+        <CardHeader>
+          <CardTitle>Step 2: Describe Your Screenshots</CardTitle>
+          <CardDescription>
+            Provide a brief description for each screenshot. This helps the AI understand the context and generate more accurate and compelling headings.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {files.map((file, index) => (
             <div key={index} className="flex flex-col gap-4 p-4 border rounded-sm">
               <img
               src={URL.createObjectURL(file)}
               alt={`Screenshot ${index + 1}`}
-              className="rounded-md w-full h-100 flex-shrink-0 object-contain"
+              className="rounded-md w-full h-auto max-h-64 object-contain"
               onLoad={e => URL.revokeObjectURL(e.currentTarget.src)}
               />
               <div>
@@ -105,7 +106,8 @@ export const Step2 = ({ files, imageDescriptions, setImageDescriptions, onGenera
             {isLoading ? "Generating..." : "Generate Content"}
           </Button>
         </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   );
 };

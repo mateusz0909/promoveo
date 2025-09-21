@@ -16,6 +16,7 @@ import { formatDistanceToNow } from 'date-fns';
 interface Project {
   id: string;
   name: string;
+  inputAppName: string;
   createdAt: string;
   updatedAt: string;
   language: string;
@@ -148,7 +149,7 @@ export function ProjectList() {
                   <TableCell>
                     <Link to={`/project/${project.id}`} className="font-medium hover:underline flex items-center">
                       {project.device === 'iPad' ? <DeviceTabletIcon className="h-5 w-5 mr-2" /> : <DevicePhoneMobileIcon className="h-5 w-5 mr-2" />}
-                      {project.name}
+                      {project.inputAppName}
                     </Link>
                   </TableCell>
                   <TableCell>{project.device || 'iPhone'}</TableCell>

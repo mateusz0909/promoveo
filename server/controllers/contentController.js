@@ -68,9 +68,9 @@ const contentController = {
       console.log('Request body keys:', Object.keys(req.body));
       console.log('Request files:', req.files ? req.files.length : 'No files');
       
-      // Extract text data and user info
-      const { projectName, appName, appDescription, imageDescriptions, language, device } = req.body;
-      console.log('Extracted data:', { projectName, appName, appDescription, language, device });
+      // Extract text data and user info - use appName as the single source of truth
+      const { appName, appDescription, imageDescriptions, language, device } = req.body;
+      console.log('Extracted data:', { appName, appDescription, language, device });
       console.log('Raw imageDescriptions:', imageDescriptions);
       
       const parsedImageDescriptions = JSON.parse(imageDescriptions);
@@ -162,7 +162,8 @@ const contentController = {
         
         console.log(`Generated image ${i + 1} URLs:`, {
           sourceScreenshotUrl,
-          generatedImageUrl
+          generatedImageUrl,
+          accentColor: generatedImageResult.accentColor
         });
       }
 
@@ -170,15 +171,16 @@ const contentController = {
       console.log('ProcessedImages summary:', processedImages.map((img, i) => ({
         index: i + 1,
         sourceScreenshotUrl: img.sourceScreenshotUrl,
-        generatedImageUrl: img.generatedImageUrl
+        generatedImageUrl: img.generatedImageUrl,
+        accentColor: img.accentColor
       })));
       
-      // Create the project record in database
+      // Create the project record in database - use appName for consistency
       const { prisma } = require('../lib/clients');
       const newProject = await prisma.project.create({
         data: {
           userId,
-          name: projectName,
+          name: appName, // Use appName for consistency across all displays
           inputAppName: appName,
           inputAppDescription: appDescription,
           generatedAsoText,
@@ -370,6 +372,7 @@ Current Keywords: "${currentContent}"
 Language: ${language}
 
 Requirements:
+- Maximum 100 characters
 - Single words only, separated by comma and space
 - No plurals, no brand names you don't own
 - Mix of broad and niche keywords

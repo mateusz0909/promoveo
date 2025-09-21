@@ -39,19 +39,19 @@ async function generateContent(appName, appDescription, imageDescriptions, langu
     Do not use special characters, emojis, or excessive punctuation.
     Ensure all claims are factual and can be substantiated.
 
-    ## App Title (max 30 chars)
+    ## App Title (max 30 chars with spaces)
     Make it short, brand-driven, and keyword-rich.
     Prioritize the core value of the app and include one strong keyword if possible.
 
-    ## Subtitle (max 30 chars)
+    ## Subtitle (max 30 chars with spaces)
     Highlight the main benefit or feature that sets the app apart.
     Include secondary keywords in a natural, compelling way.
 
-    ## Promotional Text (max 170 chars)
+    ## Promotional Text (max 170 chars with spaces)
     Focus on a short, engaging hook.
     Can be updated often, so emphasize new features, offers, or trending benefits.
 
-    ## App Description (max 4000 chars)
+    ## App Description (max 4000 chars with spaces)
     Start with a strong first two lines (since this is what users see without expanding).
     Use a clear, benefit-driven structure with proper formatting:
     ### Introduction: Why the app is valuable and what problem it solves.
@@ -73,7 +73,7 @@ async function generateContent(appName, appDescription, imageDescriptions, langu
     Dont use all caps, excessive punctuation, or special characters.
     Dont include markdown formatting, HTML tags, or URLs.
 
-    ## Keywords Field (metadata)
+    ## Keywords Field (metadata, max 100 chars)
     Single words only, separated by a comma and a space. No repeats.
     Avoid plurals, brand names you don’t own, or irrelevant terms.
     Prioritize discoverability by mixing broad and niche keywords.
@@ -93,6 +93,11 @@ async function generateContent(appName, appDescription, imageDescriptions, langu
     No emojis, special characters, or symbols.
     No over-promises, misleading claims, or superlatives like “#1” unless factual.
     Tone: professional yet approachable, engaging but trustworthy.
+
+    Final double-check:
+    Did you follow character limits?
+    Is the content clear, concise, and compelling?
+    Is the content fully compliant with Apple guidelines?
   `;
 
   try {

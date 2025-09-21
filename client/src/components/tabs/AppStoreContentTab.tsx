@@ -2,7 +2,7 @@ import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ArrowPathIcon, ClipboardDocumentIcon, CheckIcon } from "@heroicons/react/24/outline";
+import { ArrowPathIcon, ClipboardDocumentIcon, CheckIcon, PencilIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { useAuth } from "../../context/AuthContext";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 
@@ -38,6 +38,17 @@ export const AppStoreContentTab = ({
   const { session } = useAuth();
   const [loadingStates, setLoadingStates] = useState<{[key: string]: boolean}>({});
   const [copiedStates, setCopiedStates] = useState<{[key: string]: boolean}>({});
+  const [editingStates, setEditingStates] = useState<{[key: string]: boolean}>({});
+  const [editValues, setEditValues] = useState<{[key: string]: string}>({});
+
+  // Character limits for App Store compliance
+  const characterLimits: {[key: string]: number} = {
+    title: 30,
+    subtitle: 30,
+    promotionalText: 170,
+    description: 4000,
+    keywords: 100
+  };
 
   const handleCopy = async (text: string, contentType: string) => {
     await onCopy(text);
@@ -96,6 +107,35 @@ export const AppStoreContentTab = ({
     }
   };
 
+  const handleEdit = (contentType: string, currentContent: string) => {
+    setEditingStates(prev => ({ ...prev, [contentType]: true }));
+    setEditValues(prev => ({ ...prev, [contentType]: currentContent }));
+  };
+
+  const handleSaveEdit = async (contentType: string) => {
+    const newValue = editValues[contentType] || '';
+    
+    // Exit edit mode first to prevent re-render issues
+    setEditingStates(prev => ({ ...prev, [contentType]: false }));
+    
+    // Then update the content
+    await onContentUpdate(contentType, newValue);
+    
+    // Clear edit values after successful update
+    setEditValues(prev => ({ ...prev, [contentType]: '' }));
+    toast.success('Content updated successfully!');
+  };
+
+  const handleCancelEdit = (contentType: string) => {
+    setEditingStates(prev => ({ ...prev, [contentType]: false }));
+    setEditValues(prev => ({ ...prev, [contentType]: '' }));
+  };
+
+  const getCharacterCount = (content: string, contentType: string) => {
+    const limit = characterLimits[contentType];
+    return limit ? `${content.length} / ${limit}` : '';
+  };
+
   const ContentSection = ({ 
     title, 
     content, 
@@ -111,56 +151,156 @@ export const AppStoreContentTab = ({
   }) => {
     const isLoading = loadingStates[contentType];
     const isCopied = copiedStates[contentType];
+    const isEditing = editingStates[contentType];
+    const editValue = editValues[contentType] || content;
+    const characterCount = getCharacterCount(isEditing ? editValue : content, contentType);
+    const limit = characterLimits[contentType];
+    const isOverLimit = limit ? editValue.length > limit : false;
 
     return (
-      <div className="group border rounded-lg p-4 hover:bg-muted/25 transition-colors">
+      <div className="border rounded-lg p-4 bg-card">
         <div className="flex items-center justify-between mb-3">
-          <div>
-            <h4 className="font-medium text-sm">{title}</h4>
+          <div className="flex-1">
+            <div className="flex items-center justify-between">
+              <h4 className="font-medium text-sm">{title}</h4>
+              {characterCount && (
+                <span className={`text-xs font-mono ${isOverLimit ? 'text-red-500' : 'text-muted-foreground'}`}>
+                  {characterCount}
+                </span>
+              )}
+            </div>
             {description && (
               <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
             )}
           </div>
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  onClick={() => handleRegenerate(contentType, content)}
-                  size="sm" 
-                  variant="ghost"
-                  disabled={isLoading}
-                  className="h-8 w-8 p-0"
-                >
-                  <ArrowPathIcon className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                <p>Regenerate with AI</p>
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  onClick={() => handleCopy(content, contentType)} 
-                  size="sm" 
-                  variant="ghost"
-                  className="h-8 w-8 p-0"
-                >
-                  {isCopied ? (
-                    <CheckIcon className="h-3.5 w-3.5 text-green-600" />
-                  ) : (
-                    <ClipboardDocumentIcon className="h-3.5 w-3.5" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                <p>{isCopied ? 'Copied!' : 'Copy to clipboard'}</p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
         </div>
-        <div className={`text-sm text-foreground ${multiline ? 'whitespace-pre-wrap' : ''} leading-relaxed`}>
-          {content}
+
+        {/* Content Display or Edit Input */}
+        <div className="mb-3">
+          {isEditing ? (
+            multiline ? (
+              <textarea
+                key={`${contentType}-textarea`}
+                value={editValue}
+                onChange={(e) => setEditValues(prev => ({ ...prev, [contentType]: e.target.value }))}
+                className={`w-full min-h-[100px] p-3 border rounded-md text-sm resize-y ${
+                  isOverLimit ? 'border-red-300 focus:border-red-500' : 'border-input focus:border-primary'
+                } focus:outline-none focus:ring-2 focus:ring-primary/20`}
+                placeholder="Enter your content..."
+                autoFocus
+              />
+            ) : (
+              <input
+                key={`${contentType}-input`}
+                type="text"
+                value={editValue}
+                onChange={(e) => setEditValues(prev => ({ ...prev, [contentType]: e.target.value }))}
+                className={`w-full p-3 border rounded-md text-sm ${
+                  isOverLimit ? 'border-red-300 focus:border-red-500' : 'border-input focus:border-primary'
+                } focus:outline-none focus:ring-2 focus:ring-primary/20`}
+                placeholder="Enter your content..."
+                autoFocus
+              />
+            )
+          ) : (
+            <div className={`text-sm text-foreground ${multiline ? 'whitespace-pre-wrap' : ''} leading-relaxed p-3 bg-muted/25 rounded-md min-h-[48px] flex items-center`}>
+              {content || <span className="text-muted-foreground italic">No content</span>}
+            </div>
+          )}
+        </div>
+
+        {/* Action Buttons - Always Visible */}
+        <div className="flex items-center justify-end gap-1">
+          {isEditing ? (
+            // Edit mode: Show Save/Cancel
+            <>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    onClick={handleCancelEdit.bind(null, contentType)}
+                    size="sm" 
+                    variant="ghost"
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                  >
+                    <XMarkIcon className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p>Cancel</p>
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    onClick={handleSaveEdit.bind(null, contentType)}
+                    size="sm" 
+                    variant="ghost"
+                    disabled={isOverLimit}
+                    className={`h-8 w-8 p-0 ${isOverLimit ? 'text-red-500' : 'text-green-600 hover:text-green-700'}`}
+                  >
+                    <CheckIcon className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p>{isOverLimit ? 'Content exceeds limit' : 'Save changes'}</p>
+                </TooltipContent>
+              </Tooltip>
+            </>
+          ) : (
+            // View mode: Show Edit/Regenerate/Copy
+            <>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    onClick={handleEdit.bind(null, contentType, content)}
+                    size="sm" 
+                    variant="ghost"
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                  >
+                    <PencilIcon className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p>Edit content</p>
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    onClick={handleRegenerate.bind(null, contentType, content)}
+                    size="sm" 
+                    variant="ghost"
+                    disabled={isLoading}
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                  >
+                    <ArrowPathIcon className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p>Regenerate with AI</p>
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    onClick={handleCopy.bind(null, content, contentType)} 
+                    size="sm" 
+                    variant="ghost"
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                  >
+                    {isCopied ? (
+                      <CheckIcon className="h-3.5 w-3.5 text-green-600" />
+                    ) : (
+                      <ClipboardDocumentIcon className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p>{isCopied ? 'Copied!' : 'Copy to clipboard'}</p>
+                </TooltipContent>
+              </Tooltip>
+            </>
+          )}
         </div>
       </div>
     );
@@ -171,7 +311,7 @@ export const AppStoreContentTab = ({
         <CardHeader className="pb-4">
           <CardTitle className="text-lg">App Store Content</CardTitle>
           <p className="text-sm text-muted-foreground">
-            AI-generated content for your app listing. Hover over sections to reveal actions.
+            AI-generated content for your app listing. Use the action buttons to edit, regenerate, or copy content.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">

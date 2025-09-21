@@ -1,17 +1,14 @@
 import { Routes, Route, useLocation } from "react-router-dom";
-import { ProjectList } from "./pages/ProjectList";
+import { StudioHome } from "./pages/StudioHome";
 import { ProjectWorkspace } from "./pages/ProjectWorkspace";
+import { ProjectHistory } from "./pages/ProjectHistory";
 import { SettingsPage } from "./pages/SettingsPage";
 import { PrivacyPolicyPage } from "./pages/PrivacyPolicyPage";
-import { Breadcrumb } from "./components/Breadcrumb";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AuthRouter } from "./pages/AuthRouter";
 
 export function AppRouter() {
   const location = useLocation();
-  // Don't show breadcrumb on settings, privacy, or root projects page
-  const hidePages = ["/", "/settings", "/privacy"];
-  const showBreadcrumb = !hidePages.includes(location.pathname);
   const isAuthPage = location.pathname === "/login" || location.pathname === "/signup";
 
   // Auth pages should not have the main container padding
@@ -24,15 +21,14 @@ export function AppRouter() {
   }
 
   return (
-    <div className="main-content p-4 md:p-8 max-w-7xl mx-auto">
-      {showBreadcrumb && <Breadcrumb />}
+    <div className="h-full">
       <Routes>
         <Route path="/*" element={<AuthRouter />} />
         <Route
           path="/"
           element={
             <ProtectedRoute>
-              <ProjectList />
+              <StudioHome />
             </ProtectedRoute>
           }
         />
@@ -49,6 +45,72 @@ export function AppRouter() {
           element={
             <ProtectedRoute>
               <ProjectWorkspace />
+            </ProtectedRoute>
+          }
+        />
+        {/* Studio section routes - now support project context */}
+        <Route
+          path="/project/:id"
+          element={
+            <ProtectedRoute>
+              <ProjectWorkspace />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/project/:id/images"
+          element={
+            <ProtectedRoute>
+              <ProjectWorkspace />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/project/:id/text-content"
+          element={
+            <ProtectedRoute>
+              <ProjectWorkspace />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/project/:id/details"
+          element={
+            <ProtectedRoute>
+              <ProjectWorkspace />
+            </ProtectedRoute>
+          }
+        />
+        {/* Legacy studio routes - redirect to home when not in project context */}
+        <Route
+          path="/images"
+          element={
+            <ProtectedRoute>
+              <StudioHome />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/text-content"
+          element={
+            <ProtectedRoute>
+              <StudioHome />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/details"
+          element={
+            <ProtectedRoute>
+              <StudioHome />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/history"
+          element={
+            <ProtectedRoute>
+              <ProjectHistory />
             </ProtectedRoute>
           }
         />

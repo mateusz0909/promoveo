@@ -10,11 +10,32 @@ const projectController = {
     try {
       console.log('get-all-projects: Received request');
       const userId = req.user.id;
+      
+      // Extract query parameters for filtering and pagination
+      const limit = req.query.limit ? parseInt(req.query.limit) : undefined;
+      const sortBy = req.query.sortBy || 'createdAt';
+      const order = req.query.order || 'desc';
 
-      const projects = await prisma.project.findMany({
+      // Validate sortBy field
+      const allowedSortFields = ['createdAt', 'updatedAt', 'name'];
+      const finalSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'createdAt';
+      
+      // Validate order
+      const finalOrder = ['asc', 'desc'].includes(order) ? order : 'desc';
+
+      console.log(`get-all-projects: Fetching projects with limit=${limit}, sortBy=${finalSortBy}, order=${finalOrder}`);
+
+      const queryOptions = {
         where: { userId },
-        orderBy: { createdAt: 'desc' }
-      });
+        orderBy: { [finalSortBy]: finalOrder }
+      };
+
+      // Add limit if specified
+      if (limit && limit > 0) {
+        queryOptions.take = limit;
+      }
+
+      const projects = await prisma.project.findMany(queryOptions);
 
       console.log(`get-all-projects: Found ${projects.length} projects for user ${userId}`);
       res.status(200).json(projects);
@@ -59,6 +80,11 @@ const projectController = {
       const { id } = req.params;
       const userId = req.user.id;
       const updateData = req.body;
+
+      // If inputAppName is being updated, also update the name field for consistency
+      if (updateData.inputAppName) {
+        updateData.name = updateData.inputAppName;
+      }
 
       // Ensure user owns the project
       const existingProject = await prisma.project.findFirst({
@@ -249,7 +275,7 @@ const projectController = {
 
   // Save project (legacy endpoint)
   async saveProject(req, res) {
-    const { projectName, inputAppName, inputAppDescription, generatedAsoText, generatedImages } = req.body;
+    const { inputAppName, inputAppDescription, generatedAsoText, generatedImages } = req.body;
     const userId = req.user.id;
     const userEmail = req.user.email;
 
@@ -263,7 +289,7 @@ const projectController = {
 
       const newProject = await prisma.project.create({
         data: {
-          name: projectName,
+          name: inputAppName, // Use inputAppName for consistency
           inputAppName,
           inputAppDescription,
           generatedAsoText,

@@ -158,7 +158,7 @@ const imageController = {
       console.log('download-images: Sending ZIP file');
       res.set({
         'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename="${project.projectName || 'images'}.zip"`
+        'Content-Disposition': `attachment; filename="${project.name || 'images'}.zip"`
       });
       
       res.send(zipBuffer);
