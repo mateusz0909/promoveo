@@ -3,31 +3,21 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { ImagesTab } from './tabs/ImagesTab';
 import { AppStoreContentTab } from './tabs/AppStoreContentTab';
 import { ProjectOverviewTab } from './tabs/ProjectOverviewTab';
+import { LandingPageTab } from './tabs/LandingPageTab';
 import { ImageEditor } from './ImageEditor';
 import { toast } from "sonner";
 import { useAuth } from '../context/AuthContext';
-
-interface GeneratedText {
-  title: string;
-  subtitle: string;
-  promotionalText: string;
-  description: string;
-  keywords: string;
-  headings: {
-    heading: string;
-    subheading: string;
-  }[];
-}
+import type { GeneratedImage, GeneratedImageConfiguration, GeneratedText } from '@/types/project';
 
 interface ProjectContentProps {
   appName: string;
   appDescription: string;
   generatedText: GeneratedText | null;
-  generatedImages: any[];
+  generatedImages: GeneratedImage[];
   setAppName: (name: string) => void;
   setAppDescription: (description: string) => void;
   setGeneratedText: (text: GeneratedText | null) => void;
-  onImageSave: (newImageUrl: string, imageIndex: number, configuration: any) => Promise<void>;
+  onImageSave: (newImageUrl: string, imageIndex: number, configuration: GeneratedImageConfiguration) => Promise<void>;
   projectId?: string;
   device?: string;
   language?: string;
@@ -41,13 +31,29 @@ export const ProjectContent: React.FC<ProjectContentProps> = (props) => {
   const { session } = useAuth();
   const [fonts, setFonts] = useState<string[]>([]);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<any>(null);
+  const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
-  const [imageList, setImageList] = useState<any[]>([]);
+  const [imageList, setImageList] = useState<GeneratedImage[]>([]);
+
+  const {
+    appName,
+    appDescription,
+    generatedText,
+    generatedImages,
+    setAppName,
+    setAppDescription,
+    setGeneratedText,
+    onImageSave,
+    projectId,
+    device,
+    language,
+    createdAt,
+    updatedAt,
+  } = props;
 
   useEffect(() => {
-    setImageList(props.generatedImages);
-  }, [props.generatedImages]);
+    setImageList(generatedImages);
+  }, [generatedImages]);
 
   useEffect(() => {
     fetch("http://localhost:3001/api/fonts")
@@ -63,8 +69,10 @@ export const ProjectContent: React.FC<ProjectContentProps> = (props) => {
     // Check for explicit sub-routes
     if (path.includes('/text-content')) {
       return 'content';
-    } else if (path.includes('/details')) {
+    } else if (path.includes('/overview')) {
       return 'overview';
+    } else if (path.includes('/landing-page')) {
+      return 'landing-page';
     } else if (path.includes('/images') || path.match(/\/project\/[^/]+$/)) {
       // Default to images for base project route or explicit images route
       return 'images';
@@ -75,16 +83,20 @@ export const ProjectContent: React.FC<ProjectContentProps> = (props) => {
   };
 
   // Handler functions from Step3
-  const handleImageSave = async (newImageUrl: string, imageIndex: number, configuration: any) => {
+  const handleImageSave = async (newImageUrl: string, imageIndex: number, configuration: GeneratedImageConfiguration) => {
     const newImageList = [...imageList];
     const imageToUpdate = newImageList[imageIndex];
+    if (!imageToUpdate) {
+      return;
+    }
+
     const oldImageUrl = imageToUpdate.generatedImageUrl;
     
     imageToUpdate.generatedImageUrl = newImageUrl;
     imageToUpdate.configuration = configuration;
     setImageList(newImageList);
 
-    await props.onImageSave(newImageUrl, imageIndex, configuration);
+  await onImageSave(newImageUrl, imageIndex, configuration);
 
     if (oldImageUrl && 'caches' in window) {
       try {
@@ -126,7 +138,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = (props) => {
     }
   };
 
-  const handleEdit = (image: any, index: number) => {
+  const handleEdit = (image: GeneratedImage, index: number) => {
     setSelectedImage(image);
     setSelectedImageIndex(index);
     setIsEditorOpen(true);
@@ -138,7 +150,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = (props) => {
   }, []);
 
   const handleDownloadAll = async () => {
-    if (props.generatedImages.length === 0) {
+    if (generatedImages.length === 0) {
       toast.info("No images to download.");
       return;
     }
@@ -146,7 +158,14 @@ export const ProjectContent: React.FC<ProjectContentProps> = (props) => {
     toast.info("Preparing images for download...");
 
     try {
-      const fullImageUrls = props.generatedImages.map(image => image.generatedImageUrl);
+      const fullImageUrls = generatedImages
+        .map(image => image.generatedImageUrl)
+        .filter((url): url is string => Boolean(url));
+
+      if (fullImageUrls.length === 0) {
+        toast.info("No images available for download.");
+        return;
+      }
 
       const response = await fetch("http://localhost:3001/api/download-images-zip", {
         method: "POST",
@@ -178,12 +197,12 @@ export const ProjectContent: React.FC<ProjectContentProps> = (props) => {
   };
 
   const handleDeleteProject = async () => {
-    if (!props.projectId) {
+    if (!projectId) {
       toast.error("No project selected.");
       return;
     }
     try {
-      const response = await fetch(`http://localhost:3001/api/projects/${props.projectId}`, {
+      const response = await fetch(`http://localhost:3001/api/projects/${projectId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${session?.access_token}`
@@ -203,9 +222,9 @@ export const ProjectContent: React.FC<ProjectContentProps> = (props) => {
   }
 
   const handleContentUpdate = async (contentType: string, newContent: string) => {
-    if (!props.generatedText || !props.projectId) return;
+    if (!generatedText || !projectId) return;
     
-    const updatedText = { ...props.generatedText };
+    const updatedText = { ...generatedText };
     
     switch (contentType) {
       case 'title':
@@ -229,11 +248,11 @@ export const ProjectContent: React.FC<ProjectContentProps> = (props) => {
     }
     
     // Update local state immediately for responsive UI
-    props.setGeneratedText(updatedText);
+  setGeneratedText(updatedText);
 
     // Persist changes to database
     try {
-      const response = await fetch(`/api/projects/${props.projectId}/content`, {
+  const response = await fetch(`/api/projects/${projectId}/content`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -253,20 +272,20 @@ export const ProjectContent: React.FC<ProjectContentProps> = (props) => {
       console.error('Error saving content to database:', error);
       toast.error('Failed to save changes. Please try again.');
       // Optionally revert the local state change on error
-      // props.setGeneratedText(props.generatedText);
+  // setGeneratedText(generatedText);
     }
   };
 
   // Memoize imageDescriptions to prevent unnecessary re-renders
   const imageDescriptions = useMemo(() => {
-    return props.generatedImages.map(img => img.description || '');
-  }, [props.generatedImages]);
+    return generatedImages.map(img => img.description || '');
+  }, [generatedImages]);
 
   // Memoize handleContentUpdate to prevent ContentSection re-renders
   const memoizedHandleContentUpdate = useCallback(handleContentUpdate, [
-    props.generatedText, 
-    props.projectId, 
-    props.setGeneratedText, 
+    generatedText, 
+    projectId, 
+    setGeneratedText, 
     session?.access_token
   ]);
 
@@ -277,28 +296,29 @@ export const ProjectContent: React.FC<ProjectContentProps> = (props) => {
     <div className="w-full">
       {currentView === 'content' && (
         <AppStoreContentTab 
-          generatedText={props.generatedText}
+          generatedText={generatedText}
           onCopy={handleCopy}
-          appName={props.appName}
-          appDescription={props.appDescription}
+          appName={appName}
+          appDescription={appDescription}
           imageDescriptions={imageDescriptions}
           onContentUpdate={memoizedHandleContentUpdate}
+          language={language}
         />
       )}
       
       {currentView === 'overview' && (
         <ProjectOverviewTab 
-          appName={props.appName}
-          appDescription={props.appDescription}
-          generatedImages={props.generatedImages}
-          onAppNameChange={props.setAppName}
-          onAppDescriptionChange={props.setAppDescription}
+          appName={appName}
+          appDescription={appDescription}
+          generatedImages={generatedImages}
+          onAppNameChange={setAppName}
+          onAppDescriptionChange={setAppDescription}
           onDeleteProject={handleDeleteProject}
-          projectId={props.projectId}
-          createdAt={props.createdAt}
-          updatedAt={props.updatedAt}
-          language={props.language}
-          device={props.device}
+          projectId={projectId}
+          createdAt={createdAt}
+          updatedAt={updatedAt}
+          language={language}
+          device={device}
         />
       )}
       
@@ -311,6 +331,10 @@ export const ProjectContent: React.FC<ProjectContentProps> = (props) => {
         />
       )}
 
+      {currentView === 'landing-page' && (
+        <LandingPageTab />
+      )}
+
       <ImageEditor
         isOpen={isEditorOpen}
         onClose={() => setIsEditorOpen(false)}
@@ -318,8 +342,8 @@ export const ProjectContent: React.FC<ProjectContentProps> = (props) => {
         imageIndex={selectedImageIndex}
         fonts={fonts}
         onSave={handleImageSave}
-        projectId={props.projectId}
-        device={props.device}
+        projectId={projectId}
+        device={device}
       />
     </div>
   );

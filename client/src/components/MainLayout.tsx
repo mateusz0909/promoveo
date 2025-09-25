@@ -34,7 +34,7 @@ export function MainLayout({ children }: MainLayoutProps) {
         </header>
         
         {/* Main content */}
-        <div className="flex flex-1 flex-col gap-4 p-4">
+        <div className="flex flex-1 flex-col gap-4 p-12">
           {children}
         </div>
       </SidebarInset>

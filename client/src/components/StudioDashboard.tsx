@@ -13,7 +13,7 @@ import {
   SparklesIcon
 } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/utils';
-import promoveoLogo from '@/assets/promoveo.svg';
+import logo from '@/assets/logo.svg';
 
 interface Project {
   id: string;
@@ -102,26 +102,40 @@ export const StudioDashboard: React.FC<StudioDashboardProps> = ({ className }) =
   return (
     <div className={cn("space-y-8", className)}>
       {/* Welcome Header */}
-      <div className="text-center space-y-4">
-        <div className="flex items-center justify-center gap-3 mb-2">
-          <img src={promoveoLogo} alt="Promoveo" className="h-10 w-10" />
-          <h1 className="text-3xl md:text-4xl font-bold">Welcome to Promoveo Studio</h1>
+      <div className="mx-auto grid max-w-5xl items-center gap-10 md:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+        <div className="space-y-4 text-center md:text-left">
+          <div className="flex items-center justify-center gap-3 mb-2 md:justify-start">
+            <img src={logo} alt="Lemmi Studio" className="h-10 w-10 dark:invert transition-all duration-200" />
+            <h1 className="text-3xl md:text-4xl font-bold">Welcome to Lemmi Studio</h1>
+          </div>
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto md:mx-0">
+            Create compelling App Store marketing content with AI-powered tools.
+            Generate descriptions, optimize keywords, and design beautiful marketing images.
+          </p>
         </div>
-        <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-          Create compelling App Store marketing content with AI-powered tools. 
-          Generate descriptions, optimize keywords, and design beautiful marketing images.
-        </p>
+        <div className="relative flex justify-center md:justify-end">
+          <div className="relative w-full max-w-[420px] overflow-hidden rounded-3xl p-4 backdrop-blur">
+            <img
+              src="/control-panel-animate.svg"
+              alt="Animated analytics showcasing marketing insights"
+              className="h-auto w-full"
+            />
+          </div>
+        </div>
       </div>
 
-      {/* Primary Action */}
-      <div className="flex justify-center">
-        <Button asChild size="lg" className="gap-2 text-base px-8 py-6">
-          <Link to="/new-project">
-            <PlusIcon className="h-5 w-5" />
-            Create New Project
-          </Link>
-        </Button>
-      </div>
+
+      {/* Primary Action: Only show if there are recent projects */}
+      {recentProjects.length > 0 && (
+        <div className="flex justify-center">
+          <Button asChild variant="default" className="gap-2">
+            <Link to="/new-project">
+              <PlusIcon className="h-5 w-5" />
+              Create New Project
+            </Link>
+          </Button>
+        </div>
+      )}
 
       {/* Recent Projects Section */}
       {recentProjects.length > 0 ? (
@@ -137,7 +151,7 @@ export const StudioDashboard: React.FC<StudioDashboardProps> = ({ className }) =
                   Pick up where you left off
                 </CardDescription>
               </div>
-              <Button variant="ghost" asChild className="gap-2">
+              <Button variant="outline" asChild className="gap-2">
                 <Link to="/history">
                   View All Projects
                   <ArrowRightIcon className="h-4 w-4" />
@@ -233,17 +247,7 @@ export const StudioDashboard: React.FC<StudioDashboardProps> = ({ className }) =
         )
       )}
 
-      {/* Footer Link for All Projects */}
-      {recentProjects.length > 0 && (
-        <div className="text-center">
-          <Button variant="outline" asChild className="gap-2">
-            <Link to="/history">
-              View All Projects
-              <ArrowRightIcon className="h-4 w-4" />
-            </Link>
-          </Button>
-        </div>
-      )}
+    
     </div>
   );
 };

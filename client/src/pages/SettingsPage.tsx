@@ -98,42 +98,24 @@ export const SettingsPage = () => {
     }
   };
 
-  const handleBackToApp = () => {
-    navigate("/");
-  };
+
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className=" bg-background border rounded-lg shadow-sm max-w-4xl">
       {/* Header */}
       <div className="border-b">
         <div className="flex h-16 items-center px-6">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleBackToApp}
-            className="mr-4"
-          >
-            <ArrowLeftIcon className="h-4 w-4 mr-2" />
-            Back to App
-          </Button>
+       
           <h1 className="text-xl font-semibold">Settings</h1>
         </div>
       </div>
 
       <div className="flex">
         {/* Sidebar */}
-        <div className="w-64 min-h-[calc(100vh-4rem)] border-r bg-muted/50">
+        <div className="w-55 min-h-[calc(50vh)] border-r ">
           <div className="p-6">
             {/* User Info */}
-            <div className="flex items-center space-x-3 mb-6">
-              <UserAvatar user={user} size="lg" />
-              <div className="flex flex-col">
-                <p className="text-sm font-medium">{displayName}</p>
-                <p className="text-xs text-muted-foreground">{user?.email}</p>
-              </div>
-            </div>
-            
-            <Separator className="mb-4" />
+      
 
             {/* Navigation */}
             <nav className="space-y-2">

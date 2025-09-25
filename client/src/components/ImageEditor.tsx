@@ -10,21 +10,26 @@ import { useAuth } from "../context/AuthContext";
 import { Textarea } from "./ui/textarea";
 import { ThemeSelector } from "./ThemeSelector";
 import { preloadFonts } from "../utils/fontLoader";
+import type { GeneratedImage, GeneratedImageConfiguration, ImageEditorTheme } from '@/types/project';
 
 interface ImageEditorProps {
   isOpen: boolean;
   onClose: () => void;
-  imageData: any;
+  imageData: GeneratedImage | null;
   imageIndex: number | null;
   fonts: string[];
-  onSave: (newImageUrl: string, imageIndex: number, configuration: any) => Promise<void>;
+  onSave: (newImageUrl: string, imageIndex: number, configuration: GeneratedImageConfiguration) => Promise<void>;
   projectId?: string;
   device?: string;
 }
 
 type DraggableElement = "mockup" | "heading" | "subheading" | null;
 
-const themes = {
+const themes: Record<ImageEditorTheme, {
+  backgroundColor: string | null;
+  headingColor: string;
+  subheadingColor: string;
+}> = {
   accent: {
     backgroundColor: null, // Use accent color from data
     headingColor: "#000000ff",
@@ -40,7 +45,7 @@ const themes = {
     headingColor: "#FFFFFF",
     subheadingColor: "#CCCCCC",
   },
-} as const;
+};
 
 export const ImageEditor = ({ isOpen, onClose, imageData, imageIndex, fonts, onSave, projectId, device }: ImageEditorProps) => {
   const auth = useAuth();
@@ -60,7 +65,7 @@ export const ImageEditor = ({ isOpen, onClose, imageData, imageIndex, fonts, onS
   const [headingY, setHeadingY] = useState(0);
   const [subheadingX, setSubheadingX] = useState(0);
   const [subheadingY, setSubheadingY] = useState(0);
-  const [selectedTheme, setSelectedTheme] = useState<keyof typeof themes>("accent");
+  const [selectedTheme, setSelectedTheme] = useState<ImageEditorTheme>("accent");
 
   const [isDragging, setIsDragging] = useState(false);
   const [dragTarget, setDragTarget] = useState<DraggableElement>(null);
@@ -83,7 +88,7 @@ export const ImageEditor = ({ isOpen, onClose, imageData, imageIndex, fonts, onS
 
   useEffect(() => {
     if (isOpen && imageData) {
-      const config = imageData.configuration || {};
+  const config = imageData.configuration || {};
       setHeading(config.heading || "");
       setSubheading(config.subheading || "");
       setHeadingFont(config.headingFont || "Farro");
@@ -101,13 +106,14 @@ export const ImageEditor = ({ isOpen, onClose, imageData, imageIndex, fonts, onS
   }, [isOpen, imageData]);
 
   useEffect(() => {
-    if (isOpen && imageData) {
+    if (isOpen && imageData?.sourceScreenshotUrl) {
+      const screenshotUrl = imageData.sourceScreenshotUrl;
       const redraw = async () => {
         const theme = themes[selectedTheme];
         const bounds = await drawImage({
           heading,
           subheading,
-          screenshotUrl: imageData.sourceScreenshotUrl,
+          screenshotUrl,
           headingFontFamily: headingFont,
           subheadingFontFamily: subheadingFont,
           headingFontSize,
@@ -258,7 +264,12 @@ export const ImageEditor = ({ isOpen, onClose, imageData, imageIndex, fonts, onS
   };
 
   const handleSave = async () => {
-    if (!canvasRef.current || imageIndex === null || !projectId || !imageData.id) return;
+    if (!canvasRef.current || imageIndex === null || !projectId || !imageData?.id) return;
+
+    const screenshotUrl = imageData.sourceScreenshotUrl;
+    if (!screenshotUrl) {
+      return;
+    }
 
     toast.info("Saving image...");
 
@@ -267,7 +278,7 @@ export const ImageEditor = ({ isOpen, onClose, imageData, imageIndex, fonts, onS
     await drawImage({
       heading,
       subheading,
-      screenshotUrl: imageData.sourceScreenshotUrl,
+  screenshotUrl,
       headingFontFamily: headingFont,
       subheadingFontFamily: subheadingFont,
       headingFontSize,
@@ -293,7 +304,7 @@ export const ImageEditor = ({ isOpen, onClose, imageData, imageIndex, fonts, onS
         return;
       }
 
-      const configuration = {
+      const configuration: GeneratedImageConfiguration = {
         heading,
         subheading,
         headingFont,

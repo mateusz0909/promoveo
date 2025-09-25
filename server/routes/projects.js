@@ -17,8 +17,14 @@ router.put('/:id', requireAuth, projectController.updateProject);
 // Delete a project
 router.delete('/:id', requireAuth, projectController.deleteProject);
 
-// Download landing page
-router.get('/:id/landing-page', requireAuth, projectController.downloadLandingPage);
+// Landing page configuration & generation
+router.get('/:id/landing-page', requireAuth, projectController.getLandingPageState);
+router.post(
+	'/:id/landing-page',
+	requireAuth,
+	upload.fields([{ name: 'logo', maxCount: 1 }]),
+	projectController.generateLandingPagePackage
+);
 
 // Update project ASO content
 router.put('/:id/content', requireAuth, projectController.updateProjectContent);

@@ -1,115 +1,155 @@
 <!DOCTYPE html>
-<html class="no-js" lang="en">
+<html class="no-js" lang="<%= staticText.lang || 'en' %>">
 <head>
+
+    <!--- basic page needs
+    ================================================== -->
     <meta charset="utf-8">
-    <title><%= appName || 'Your App' %></title>
-    <meta name="description" content="">
+    <title><%= appName || 'App Name' %></title>
+    <meta name="description" content="<%= staticText.metaDescription || '' %>">
     <meta name="author" content="">
+
+    <!-- mobile specific metas
+    ================================================== -->
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="css/base.css">
-    <link rel="stylesheet" href="css/vendor.css">
-    <link rel="stylesheet" href="css/main.css">
-    <script src="js/modernizr.js"></script>
-    <script src="js/pace.min.js"></script>
-    <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
-    <link rel="icon" href="favicon.ico" type="image/x-icon">
-</head>
-<body id="top">
-    <div id="preloader">
-        <div id="loader" class="dots-jump">
-            <div></div>
-            <div></div>
-            <div></div>
-        </div>
-    </div>
-    <header class="s-header">
-        <div class="row">
-            <div class="header-logo">
-                <a class="site-logo" href="index.html">
-                    <h2 style="color: white; font-weight: bold;"><%= appName || "App Name" %></h2>
-                </a>
-            </div>
-    
-            <nav class="header-nav-wrap">
-                <ul class="header-main-nav">
-                    <li class="current"><a class="smoothscroll" href="#home" title="intro">Intro</a></li>
-                    <li><a class="smoothscroll" href="#features" title="features">Features</a></li>
+
+
+    <!DOCTYPE html>
+    <html lang="<%= staticText.lang || 'en' %>">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title><%= appName || 'App Name' %></title>
+        <meta name="description" content="<%= staticText.metaDescription || '' %>">
+        <link rel="stylesheet" href="styles.css">
+        <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Open+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    </head>
+    <body>
+        <!-- Navigation -->
+        <nav class="navbar">
+            <div class="nav-container">
+                <div class="nav-logo">
+                    <% if (hasCustomLogo && logoFilename) { %>
+                        <img src="images/<%= logoFilename %>" alt="<%= appName || 'App Logo' %>" class="nav-logo-img">
+                    <% } else { %>
+                        <img src="images/applogo.png" alt="<%= appName || 'App Logo' %>" class="nav-logo-img">
+                    <% } %>
+                </div>
+                <ul class="nav-menu">
+                    <li class="nav-item">
+                        <a href="#home" class="nav-link"><%= staticText.navHome || 'Home' %></a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#features" class="nav-link"><%= staticText.navFeatures || 'Features' %></a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#download" class="nav-link"><%= staticText.navDownload || 'Download' %></a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#contact" class="nav-link"><%= staticText.navContact || 'Contact' %></a>
+                    </li>
                 </ul>
-    
-                <div class="header-cta">
-                    <a href="#download" class="btn btn--primary header-cta__btn smoothscroll"><%= callToAction || 'Get The App' %></a>
+                <div class="nav-toggle" id="mobile-menu">
+                    <span class="bar"></span>
+                    <span class="bar"></span>
+                    <span class="bar"></span>
                 </div>
-            </nav>
-    
-            <a class="header-menu-toggle" href="#"><span>Menu</span></a>
-        </div>
-    </header>
-    <section id="home" class="s-home target-section" data-parallax="scroll" data-image-src="images/hero-bg.jpg" data-natural-width=3000 data-natural-height=2000 data-position-y=center>
-        <div class="shadow-overlay"></div>
-        <div class="home-content">
-            <div class="row home-content__main">
-                <div class="home-content__left">
-                    <h1><%- headline || 'An Amazing App That Does It All.' %></h1>
-                    <h3><%- subheadline || 'A great description of your app.' %></h3>
-                    <div class="home-content__btn-wrap">
-                        <a href="#download" class="btn btn--primary home-content__btn smoothscroll">
-                            <%= callToAction || 'Get The App' %>
+            </div>
+        </nav>
+
+        <!-- Hero Section -->
+        <section id="home" class="hero">
+            <div class="hero-container">
+                <div class="hero-content">
+                    <h1 class="hero-title"><%- headline || 'An Amazing App' %></h1>
+                    <p class="hero-description"><%- subheadline || 'The ultimate tool for solo developers to create amazing content quickly and efficiently.' %></p>
+                    <a href="#download" class="cta-button"><%- callToAction || 'Get Started' %></a>
+                </div>
+                <div class="hero-image">
+                    <img src="<%= screenshotUrl || 'images/appmockup.png' %>" alt="<%= appName || 'App Mockup' %>" class="app-mockup">
+                </div>
+            </div>
+        </section>
+
+        <!-- Features Section -->
+        <section id="features" class="features">
+            <div class="container">
+                <h2 class="section-title"><%- featuresHeader || staticText.featuresTitle || 'Key Features' %></h2>
+                <div class="features-grid">
+                    <% if (features && features.length > 0) { %>
+                        <% features.forEach(feature => { %>
+                            <div class="feature-card">
+                                <div class="feature-icon"><i class="<%= feature.icon || '' %>"></i></div>
+                                <h3 class="feature-title"><%= feature.title %></h3>
+                                <p class="feature-description"><%= feature.description %></p>
+                            </div>
+                        <% }) %>
+                    <% } %>
+                </div>
+            </div>
+        </section>
+
+        <!-- Download Section -->
+        <section id="download" class="download">
+            <div class="container">
+                <h2 class="section-title"><%= staticText.downloadTitle || 'Download' %></h2>
+                <p class="download-description"><%= staticText.downloadDescription || 'Get started today and transform your development workflow.' %></p>
+                <div class="download-buttons">
+                    <% if (appStoreUrl) { %>
+                        <a href="<%= appStoreUrl %>" class="download-btn appstore" target="_blank" rel="noopener">
+                            <img src="assets/appstore.png" alt="App Store" class="appstore-icon">
                         </a>
-                    </div>
-                </div>
-                <div class="home-content__right">
-                    <img src="<%= screenshotUrl || 'images/appmockup.png' %>" class="home-content__img" alt="App Mockup">
+                    <% } else { %>
+                        <span class="download-btn appstore disabled">
+                            <img src="assets/appstore.png" alt="App Store" class="appstore-icon">
+                        </span>
+                    <% } %>
                 </div>
             </div>
-        </div>
-    </section>
-    <section id="features" class="s-features target-section">
-        <div class="row section-header has-bottom-sep" data-aos="fade-up">
-            <div class="col-full">
-                <h1 class="display-1">
-                    Features You'll Love
-                </h1>
-            </div>
-        </div>
-        <div class="row features block-1-3 block-m-1-2">
-            <% if (features && features.length > 0) { %>
-                <% features.forEach(feature => { %>
-                    <div class="col-block item-feature" data-aos="fade-up">
-                        <div class="item-feature__text">
-                            <h3 class="item-title"><%= feature.title %></h3>
-                            <p><%= feature.description %></p>
+        </section>
+
+        <!-- Contact Section -->
+        <section id="contact" class="contact">
+            <div class="container">
+                <h2 class="section-title"><%= staticText.contactTitle || 'Get in Touch' %></h2>
+                <p class="contact-description"><%= staticText.contactDescription || 'Have questions or feedback? We\'d love to hear from you.' %></p>
+                <div class="contact-content">
+                    <div class="contact-info">
+                        <div class="contact-item">
+                            <h4><%= staticText.contactEmailTitle || 'Email' %></h4>
+                            <p><%= staticText.contactEmail || 'hello@' + (appName || 'appname').toLowerCase().replace(/\s+/g, '') + '.com' %></p>
+                        </div>
+                        <div class="contact-item">
+                            <h4><%= staticText.contactSupportTitle || 'Support' %></h4>
+                            <p><%= staticText.contactSupport || 'support@' + (appName || 'appname').toLowerCase().replace(/\s+/g, '') + '.com' %></p>
                         </div>
                     </div>
-                <% }) %>
-            <% } else { %>
-                <div class="col-block item-feature" data-aos="fade-up">
-                    <div class="item-feature__text">
-                        <h3 class="item-title">Feature One</h3>
-                        <p>Description of this awesome feature.</p>
+        
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="container">
+                <div class="footer-content">
+                    <div class="footer-logo">
+                        <h3><%= appName || 'App Name' %></h3>
+                        <p><%= staticText.footerSlogan || 'Empowering solo developers worldwide.' %></p>
+                    </div>
+                    <div class="footer-links">
+                        <a href="#privacy" class="footer-link"><%= staticText.footerPrivacyPolicy || 'Privacy Policy' %></a>
+                        <a href="#terms" class="footer-link"><%= staticText.footerTerms || 'Terms of Service' %></a>
                     </div>
                 </div>
-            <% } %>
-        </div>
-    </section>
-    <section id="download" class="s-download" style="padding-top: 0;">
-        <div class="row">
-            <div class="col-full text-center">
-                <h2 style="margin-bottom: 2rem;">Get started with <%= appName %> today!</h2>
-                <a class="btn btn--primary" href="#"><%= callToAction || 'Download Now' %></a>
-            </div>
-        </div>
-    </section>
-    <footer>
-        <div class="row">
-            <div class="col-full">
-                <div class="copyright">
-                    <span>© Copyright <%= new Date().getFullYear() %> <%= appName %></span> 
+                <div class="footer-bottom">
+                    <p>&copy; <%= new Date().getFullYear() %> <%= appName || 'App Name' %>. <%= staticText.footerCopyright || 'All rights reserved.' %></p>
                 </div>
             </div>
-        </div>
-    </footer>
-    <script src="js/jquery-3.2.1.min.js"></script>
-    <script src="js/plugins.js"></script>
-    <script src="js/main.js"></script>
-</body>
-</html>
+        </footer>
+
+        <script src="script.js"></script>
+    </body>
+    </html>
+                </p>

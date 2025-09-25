@@ -39,7 +39,7 @@ export const PrivacyPolicyPage = () => {
             <section className="space-y-3">
               <h2 className="text-2xl font-semibold">Introduction</h2>
               <p className="text-foreground/80 leading-relaxed">
-                Welcome to AppStoreFire. This Privacy Policy explains how we collect, use, disclose, and 
+                Welcome to Lemmi Studio. This Privacy Policy explains how we collect, use, disclose, and 
                 safeguard your information when you use our application.
               </p>
             </section>
@@ -124,7 +124,7 @@ export const PrivacyPolicyPage = () => {
                   If you have any questions about this Privacy Policy, please contact us at:
                 </p>
                 <div className="bg-muted p-3 rounded-md">
-                  <p className="font-medium">Email: privacy@appstorefire.com</p>
+                  <p className="font-medium">Email: privacy@lemmistudio.com</p>
                 </div>
               </div>
             </section>

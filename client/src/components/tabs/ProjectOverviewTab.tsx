@@ -1,11 +1,8 @@
 import { Button } from "../ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Input } from "../ui/input";
-import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
 import { Badge } from "../ui/badge";
-import { ImageZoom } from "@/components/ui/shadcn-io/image-zoom";
-import { LazyImage } from '../LazyImage';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "../ui/alert-dialog";
 import {
   DevicePhoneMobileIcon,
@@ -16,17 +13,28 @@ import {
   PhotoIcon,
   CloudArrowUpIcon,
   CheckCircleIcon,
-  ArrowDownTrayIcon,
+  CloudArrowDownIcon,
 } from "@heroicons/react/24/outline";
 import { formatDistanceToNow } from 'date-fns';
 import { useState, useEffect, useCallback } from 'react';
+import type { ComponentType, SVGProps } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '../../context/AuthContext';
+
+interface GeneratedProjectImage {
+  sourceScreenshotUrl?: string | null;
+  generatedImageUrl?: string | null;
+  accentColor?: string | null;
+  configuration?: {
+    heading?: string | null;
+    subheading?: string | null;
+  } | null;
+}
 
 interface ProjectOverviewTabProps {
   appName: string;
   appDescription: string;
-  generatedImages: any[];
+  generatedImages?: GeneratedProjectImage[];
   onAppNameChange: (name: string) => void;
   onAppDescriptionChange: (description: string) => void;
   onDeleteProject: () => Promise<void>;
@@ -36,12 +44,13 @@ interface ProjectOverviewTabProps {
   updatedAt?: string;
   language?: string;
   device?: string;
+  landingPageZipUpdatedAt?: string;
 }
 
 export const ProjectOverviewTab = ({ 
   appName, 
   appDescription, 
-  generatedImages, 
+  generatedImages = [], 
   onAppNameChange, 
   onAppDescriptionChange, 
   onDeleteProject,
@@ -49,11 +58,11 @@ export const ProjectOverviewTab = ({
   createdAt,
   updatedAt,
   language = "English",
-  device = "iPhone"
+  device = "iPhone",
+  landingPageZipUpdatedAt,
 }: ProjectOverviewTabProps) => {
   const { session } = useAuth();
   const [isSaving, setIsSaving] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [originalValues, setOriginalValues] = useState({ appName, appDescription });
@@ -109,283 +118,283 @@ export const ProjectOverviewTab = ({
     }
   };
 
-  const handleDownloadLandingPage = async () => {
-    if (!projectId || !session?.access_token) return;
-
-    setIsDownloading(true);
-    toast.info("Generating your landing page... this may take a moment.");
-
-    try {
-      const response = await fetch(`/api/projects/${projectId}/landing-page`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to generate landing page.');
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${appName}-landing-page.zip`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-
-      toast.success("Landing page downloaded successfully!");
-
-    } catch (error) {
-      console.error("Error downloading landing page:", error);
-      toast.error("Failed to download landing page. Please try again.");
-    } finally {
-      setIsDownloading(false);
-    }
-  };
-
   const getDeviceIcon = (device: string) => {
     return device.toLowerCase().includes('ipad') ? DeviceTabletIcon : DevicePhoneMobileIcon;
   };
 
   const DeviceIcon = getDeviceIcon(device);
+  const generatedImageCount = generatedImages.length;
+  const descriptionLength = appDescription.length;
+
+  type MetadataCardConfig = {
+    key: string;
+    label: string;
+    value: string;
+    icon: ComponentType<SVGProps<SVGSVGElement>>;
+    helper?: string;
+  };
+
+  const metadataCandidates: Array<MetadataCardConfig | null> = [
+    createdAt
+      ? {
+          key: "createdAt",
+          label: "Created",
+          value: formatDistanceToNow(new Date(createdAt), { addSuffix: true }),
+          icon: CalendarDaysIcon,
+          helper: new Date(createdAt).toLocaleString(),
+        }
+      : null,
+    updatedAt
+      ? {
+          key: "updatedAt",
+          label: "Last updated",
+          value: formatDistanceToNow(new Date(updatedAt), { addSuffix: true }),
+          icon: ClockIcon,
+          helper: new Date(updatedAt).toLocaleString(),
+        }
+      : null,
+    language
+      ? {
+          key: "language",
+          label: "Language",
+          value: language,
+          icon: LanguageIcon,
+        }
+      : null,
+    device
+      ? {
+          key: "device",
+          label: "Device preset",
+          value: device,
+          icon: DeviceIcon,
+        }
+      : null,
+    landingPageZipUpdatedAt
+      ? {
+          key: "landingPage",
+          label: "Landing page build",
+          value: formatDistanceToNow(new Date(landingPageZipUpdatedAt), { addSuffix: true }),
+          icon: CloudArrowDownIcon,
+          helper: new Date(landingPageZipUpdatedAt).toLocaleString(),
+        }
+      : null,
+    {
+      key: "assets",
+      label: "Generated assets",
+      value: `${generatedImageCount} ${generatedImageCount === 1 ? "image" : "images"}`,
+      icon: PhotoIcon,
+      helper: `${descriptionLength}/4000 characters in description`,
+    },
+  ];
+
+  const metadataCards = metadataCandidates.filter(
+    (card): card is MetadataCardConfig => card !== null
+  );
+
+  const renderSaveStatus = () => {
+    if (!projectId) return null;
+
+    if (hasUnsavedChanges) {
+      return (
+        <div className="flex items-center gap-1 text-xs text-orange-600">
+          <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+          <span>Unsaved changes</span>
+        </div>
+      );
+    }
+
+    if (lastSaved) {
+      return (
+        <div className="flex items-center gap-1 text-xs text-green-600">
+          <CheckCircleIcon className="w-3 h-3" />
+          <span>Saved {formatDistanceToNow(lastSaved, { addSuffix: true })}</span>
+        </div>
+      );
+    }
+
+    return <span className="text-xs text-muted-foreground">Saves when you click outside</span>;
+  };
 
   return (
     <div className="space-y-6">
-      {/* Project Header with Stats */}
-      <Card>
-        <CardHeader className="pb-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-xl">Project Overview</CardTitle>
-              <div className="flex items-center gap-2 mt-1">
-                <p className="text-sm text-muted-foreground">
-                  Manage your app's basic information and project settings
-                </p>
-                {projectId && (
-                  <>
-                    <span className="text-muted-foreground">•</span>
-                    <div className="flex items-center gap-1">
-                      {hasUnsavedChanges ? (
-                        <>
-                          <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
-                          <span className="text-xs text-orange-600">Unsaved changes</span>
-                        </>
-                      ) : lastSaved ? (
-                        <>
-                          <CheckCircleIcon className="w-3 h-3 text-green-600" />
-                          <span className="text-xs text-green-600">
-                            Saved {formatDistanceToNow(lastSaved, { addSuffix: true })}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">Saves when you click outside</span>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
+      <Card className="bg-card/60 border border-border/50 shadow-sm">
+        <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-muted-foreground">
+              Project overview
             </div>
-            <div className="flex items-center gap-2">
-              {projectId && (
-                <>
-                  <Badge variant="secondary" className="font-mono text-xs">
-                    ID: {projectId.slice(-8)}
-                  </Badge>
-                  <Button
-                    onClick={() => saveProject(true)}
-                    disabled={!hasUnsavedChanges || isSaving}
-                    size="sm"
-                    variant={hasUnsavedChanges ? "default" : "outline"}
-                    className="min-w-[80px]"
-                  >
-                    {isSaving ? (
-                      <>
-                        <CloudArrowUpIcon className="w-4 h-4 mr-1 animate-spin" />
-                        Saving...
-                      </>
-                    ) : hasUnsavedChanges ? (
-                      <>
-                        <CloudArrowUpIcon className="w-4 h-4 mr-1" />
-                        Save
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircleIcon className="w-4 h-4 mr-1" />
-                        Saved
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    onClick={handleDownloadLandingPage}
-                    disabled={isDownloading}
-                    size="sm"
-                    variant="outline"
-                  >
-                    {isDownloading ? (
-                      <>
-                        <ArrowDownTrayIcon className="w-4 h-4 mr-1 animate-pulse" />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <ArrowDownTrayIcon className="w-4 h-4 mr-1" />
-                        Get Landing Page
-                      </>
-                    )}
-                  </Button>
-                </>
-              )}
-            </div>
+            <CardTitle className="mt-1 text-2xl">Keep your project details aligned</CardTitle>
+            <CardDescription className="mt-2 max-w-2xl text-sm text-muted-foreground">
+              Update app basics, monitor metadata, and manage workspace health without leaving the studio.
+            </CardDescription>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Project Stats */}
-          {(createdAt || updatedAt || language || device) && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-muted/25 rounded-lg border">
-              {createdAt && (
-                <div className="flex items-center gap-2">
-                  <CalendarDaysIcon className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground">Created</p>
-                    <p className="text-sm">{formatDistanceToNow(new Date(createdAt), { addSuffix: true })}</p>
-                  </div>
-                </div>
-              )}
-              
-              {updatedAt && (
-                <div className="flex items-center gap-2">
-                  <ClockIcon className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground">Updated</p>
-                    <p className="text-sm">{formatDistanceToNow(new Date(updatedAt), { addSuffix: true })}</p>
-                  </div>
-                </div>
-              )}
-              
-              <div className="flex items-center gap-2">
-                <LanguageIcon className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground">Language</p>
-                  <p className="text-sm">{language}</p>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <DeviceIcon className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground">Device</p>
-                  <p className="text-sm">{device}</p>
-                </div>
+
+          {projectId && (
+            <div className="flex flex-col items-start gap-3 sm:items-end">
+              <Badge variant="secondary" className="font-mono text-xs">
+                ID: {projectId.slice(-8)}
+              </Badge>
+              <div className="flex flex-col gap-2 sm:items-end">
+                <Button
+                  onClick={() => saveProject(true)}
+                  disabled={!hasUnsavedChanges || isSaving}
+                  size="sm"
+                  variant={hasUnsavedChanges ? "default" : "outline"}
+                  className="min-w-[96px]"
+                >
+                  {isSaving ? (
+                    <>
+                      <CloudArrowUpIcon className="w-4 h-4 mr-1 animate-spin" />
+                      Saving...
+                    </>
+                  ) : hasUnsavedChanges ? (
+                    <>
+                      <CloudArrowUpIcon className="w-4 h-4 mr-1" />
+                      Save
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircleIcon className="w-4 h-4 mr-1" />
+                      Saved
+                    </>
+                  )}
+                </Button>
+                {renderSaveStatus()}
               </div>
             </div>
           )}
+        </CardHeader>
 
-          {/* App Information */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">App Information</h3>
-            
-            <div className="grid md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="appName" className="text-sm font-medium">App Name</Label>
-                <Input 
-                  id="appName" 
-                  value={appName} 
-                  onChange={(e) => onAppNameChange(e.target.value)}
-                  onBlur={handleFieldBlur}
-                  placeholder="Enter your app name"
-                  className="transition-all duration-200 focus:ring-2 focus:ring-primary/20"
-                />
-                <p className="text-xs text-muted-foreground">The name that will appear in app stores</p>
+        <CardContent className="space-y-10">
+          {metadataCards.length > 0 && (
+            <section className="space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                  Project metadata
+                </h3>
+                <p className="mt-1 text-sm text-muted-foreground/80">
+                  Snapshot of key attributes that influence generation results and exports.
+                </p>
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Project Summary</Label>
-                <div className="flex items-center gap-4 p-3 bg-muted/25 rounded-md">
-                  <div className="flex items-center gap-1">
-                    <PhotoIcon className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">{generatedImages?.length || 0}</span>
-                    <span className="text-xs text-muted-foreground">screenshots</span>
-                  </div>
-                  <div className="text-muted-foreground">•</div>
-                  <div className="text-sm">
-                    <span className="font-medium">{appDescription.length}</span>
-                    <span className="text-muted-foreground text-xs">/4000 chars</span>
-                  </div>
-                </div>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {metadataCards.map(({ key, label, value, icon: Icon, helper }) => (
+                  <Card key={key} className="border border-border/50 bg-background/60 shadow-sm">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">{label}</CardTitle>
+                      <Icon className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent className="space-y-1">
+                      <p className="text-lg font-semibold leading-none text-foreground">{value}</p>
+                      {helper && (
+                        <p className="text-xs text-muted-foreground">{helper}</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
+            </section>
+          )}
+
+          <section className="space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Identity & narrative
+              </h3>
+              <p className="mt-1 text-sm text-muted-foreground/80">
+                Keep these fields polished—they feed both AI generation and your public listing.
+              </p>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="appDescription" className="text-sm font-medium">App Description</Label>
-              <Textarea 
-                id="appDescription" 
-                value={appDescription} 
-                onChange={(e) => onAppDescriptionChange(e.target.value)}
-                onBlur={handleFieldBlur}
-                placeholder="Describe what your app does and its key features..."
-                className="min-h-[100px] transition-all duration-200 focus:ring-2 focus:ring-primary/20"
-                maxLength={4000}
-              />
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Provide a clear description of your app's purpose and main features</span>
-                <span>{appDescription.length}/4000</span>
-              </div>
+            <div className="grid gap-5 lg:grid-cols-2">
+              <Card className="border border-border/50 bg-background/60 shadow-sm">
+                <CardHeader className="gap-2">
+                  <CardTitle className="text-base font-semibold">App name</CardTitle>
+                  <CardDescription>Displayed anywhere your listing appears.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Input
+                    id="appName"
+                    value={appName}
+                    onChange={(e) => onAppNameChange(e.target.value)}
+                    onBlur={handleFieldBlur}
+                    placeholder="Enter your app name"
+                    className="transition-all duration-200 focus:ring-2 focus:ring-primary/20"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Short, memorable names perform best. Autosaves when you click away.
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="border border-border/50 bg-background/60 shadow-sm">
+                <CardHeader className="gap-2">
+                  <CardTitle className="text-base font-semibold">Project summary</CardTitle>
+                  <CardDescription>Quick health check for your assets.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span>Generated images</span>
+                    <Badge variant="secondary" className="font-mono">
+                      {generatedImageCount}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Description length</span>
+                    <span className="font-mono text-muted-foreground">
+                      {descriptionLength}/4000
+                    </span>
+                  </div>
+                  {language && (
+                    <div className="flex items-center justify-between">
+                      <span>Language</span>
+                      <span className="font-mono text-muted-foreground">{language}</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="border border-border/50 bg-background/60 shadow-sm lg:col-span-2">
+                <CardHeader className="gap-2">
+                  <CardTitle className="text-base font-semibold">App description</CardTitle>
+                  <CardDescription>
+                    Share the value prop and core features that differentiate your experience.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Textarea
+                    id="appDescription"
+                    value={appDescription}
+                    onChange={(e) => onAppDescriptionChange(e.target.value)}
+                    onBlur={handleFieldBlur}
+                    placeholder="Describe what your app does and its key features..."
+                    className="min-h-[140px] transition-all duration-200 focus:ring-2 focus:ring-primary/20"
+                    maxLength={4000}
+                  />
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Use paragraphs and bullet points. We preserve formatting downstream.</span>
+                    <span>{descriptionLength}/4000</span>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
-          </div>
+          </section>
         </CardContent>
       </Card>
 
-      {/* Screenshots Preview */}
-      {generatedImages && generatedImages.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <PhotoIcon className="h-5 w-5" />
-              Screenshots ({generatedImages.length})
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Preview of your uploaded app screenshots
-            </p>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-              {generatedImages.map((image, index) => (
-                <div key={index} className="group relative">
-                  <ImageZoom zoomMargin={120}>
-                    <div className="relative overflow-hidden rounded-lg border bg-muted/25 aspect-[9/19.5]">
-                      <LazyImage
-                        src={image.sourceScreenshotUrl}
-                        alt={`Screenshot ${index + 1}`}
-                        className="object-cover w-full h-full transition-transform duration-200 group-hover:scale-105"
-                      />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-200" />
-                    </div>
-                  </ImageZoom>
-                  <p className="text-xs text-muted-foreground mt-1 text-center">Screenshot {index + 1}</p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Danger Zone */}
-      <Card className="border-destructive/20">
+      <Card className="border border-destructive/20 bg-destructive/5 shadow-sm">
         <CardHeader>
           <CardTitle className="text-destructive">Danger Zone</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Irreversible actions that will permanently affect your project
-          </p>
+          <CardDescription className="text-muted-foreground">
+            Irreversible actions that will permanently affect your project.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-between p-4 border border-destructive/20 rounded-lg bg-destructive/5">
+          <div className="flex flex-col gap-4 rounded-lg border border-destructive/30 bg-destructive/10 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h4 className="text-sm font-medium">Delete Project</h4>
-              <p className="text-xs text-muted-foreground mt-1">
-                This will permanently delete your project and all associated data
+              <h4 className="text-sm font-medium text-foreground">Delete project</h4>
+              <p className="text-xs text-foreground/70 mt-1">
+                This will permanently delete your project and all associated data.
               </p>
             </div>
             <AlertDialog>

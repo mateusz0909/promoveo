@@ -117,7 +117,7 @@ export function ProjectList() {
   if (!session) {
     return (
       <div className="text-center">
-        <h2 className="text-2xl font-bold mb-4">Welcome to Promoveo</h2>
+        <h2 className="text-2xl font-bold mb-4">Welcome to Lemmi Studio</h2>
         <p>Please log in to manage your projects.</p>
       </div>
     );

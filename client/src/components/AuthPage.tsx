@@ -9,7 +9,7 @@ import {
 import { Loader2 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useState } from "react";
-import promoveoLogo from '@/assets/promoveo.svg';
+import logo from '@/assets/logo.svg';
 
 export function AuthPage({ type }: { type: "login" | "signup" }) {
   const [loadingProvider, setLoadingProvider] = useState<"google" | "github" | "apple" | null>(null);
@@ -76,7 +76,7 @@ export function AuthPage({ type }: { type: "login" | "signup" }) {
       <Card className="mx-auto max-w-md w-full">
         <CardHeader className="text-center space-y-4">
           <div className="flex justify-center">
-            <img src={promoveoLogo} alt="Promeveo Logo" className="h-12" />
+            <img src={logo} alt="Lemmi Studio Logo" className="h-12 dark:invert transition-all duration-200" />
           </div>
           <CardTitle className="text-3xl font-bold">{title}</CardTitle>
           <CardDescription className="text-base">{description}</CardDescription>

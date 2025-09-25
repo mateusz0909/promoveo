@@ -74,7 +74,15 @@ export function AppRouter() {
           }
         />
         <Route
-          path="/project/:id/details"
+          path="/project/:id/overview"
+          element={
+            <ProtectedRoute>
+              <ProjectWorkspace />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/project/:id/landing-page"
           element={
             <ProtectedRoute>
               <ProjectWorkspace />
@@ -99,7 +107,15 @@ export function AppRouter() {
           }
         />
         <Route
-          path="/details"
+          path="/overview"
+          element={
+            <ProtectedRoute>
+              <StudioHome />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/landing-page"
           element={
             <ProtectedRoute>
               <StudioHome />

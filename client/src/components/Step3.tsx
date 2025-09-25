@@ -7,28 +7,18 @@ import { ImageEditor } from "./ImageEditor";
 import { ImagesTab } from "./tabs/ImagesTab";
 import { AppStoreContentTab } from "./tabs/AppStoreContentTab";
 import { ProjectOverviewTab } from "./tabs/ProjectOverviewTab";
-
-interface GeneratedText {
-  title: string;
-  subtitle: string;
-  promotionalText: string;
-  description: string;
-  keywords: string;
-  headings: {
-    heading: string;
-    subheading: string;
-  }[];
-}
+import { LandingPageTab } from "./tabs/LandingPageTab";
+import type { GeneratedImage, GeneratedImageConfiguration, GeneratedText } from '@/types/project';
 
 interface Step3Props {
   appName: string;
   appDescription: string;
   generatedText: GeneratedText | null;
-  generatedImages: any[];
+  generatedImages: GeneratedImage[];
   setAppName: (name: string) => void;
   setAppDescription: (description: string) => void;
   setGeneratedText: (text: GeneratedText | null) => void;
-  onImageSave: (newImageUrl: string, imageIndex: number, configuration: any) => Promise<void>;
+  onImageSave: (newImageUrl: string, imageIndex: number, configuration: GeneratedImageConfiguration) => Promise<void>;
   projectId?: string;
   device?: string;
   language?: string;
@@ -41,9 +31,9 @@ export const Step3 = ({ appName, appDescription, generatedText, generatedImages,
   const navigate = useNavigate();
   const [fonts, setFonts] = useState<string[]>([]);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<any>(null);
+  const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
-  const [imageList, setImageList] = useState<any[]>([]);
+  const [imageList, setImageList] = useState<GeneratedImage[]>([]);
 
   useEffect(() => {
     setImageList(generatedImages);
@@ -56,9 +46,12 @@ export const Step3 = ({ appName, appDescription, generatedText, generatedImages,
       .catch(err => console.error("Error fetching fonts:", err));
   }, []);
 
-  const handleImageSave = async (newImageUrl: string, imageIndex: number, configuration: any) => {
+  const handleImageSave = async (newImageUrl: string, imageIndex: number, configuration: GeneratedImageConfiguration) => {
     const newImageList = [...imageList];
     const imageToUpdate = newImageList[imageIndex];
+    if (!imageToUpdate) {
+      return;
+    }
     const oldImageUrl = imageToUpdate.generatedImageUrl;
     
     // Update with new immutable URL
@@ -110,7 +103,7 @@ export const Step3 = ({ appName, appDescription, generatedText, generatedImages,
     }
   };
 
-  const handleEdit = (image: any, index: number) => {
+  const handleEdit = (image: GeneratedImage, index: number) => {
     setSelectedImage(image);
     setSelectedImageIndex(index);
     setIsEditorOpen(true);
@@ -130,7 +123,14 @@ export const Step3 = ({ appName, appDescription, generatedText, generatedImages,
     toast.info("Preparing images for download...");
 
     try {
-      const fullImageUrls = generatedImages.map(image => image.generatedImageUrl);
+      const fullImageUrls = generatedImages
+        .map(image => image.generatedImageUrl)
+        .filter((url): url is string => Boolean(url));
+
+      if (fullImageUrls.length === 0) {
+        toast.info("No images available for download.");
+        return;
+      }
 
       const response = await fetch("http://localhost:3001/api/download-images-zip", {
         method: "POST",
@@ -225,9 +225,12 @@ export const Step3 = ({ appName, appDescription, generatedText, generatedImages,
           className='data-[state=active]:bg-secondary dark:data-[state=active]:bg-secondary data-[state=active]:text-primary-foreground dark:data-[state=active]:text-primary-foreground dark:data-[state=active]:border-transparent'> Images</TabsTrigger>
           <TabsTrigger value="text-content"
           className='data-[state=active]:bg-secondary dark:data-[state=active]:bg-secondary  data-[state=active]:text-primary-foreground dark:data-[state=active]:text-primary-foreground dark:data-[state=active]:border-transparent'>App Store Content</TabsTrigger>
-          <TabsTrigger value="project-details"
+          <TabsTrigger value="project-overview"
           className='data-[state=active]:bg-secondary dark:data-[state=active]:bg-secondary  data-[state=active]:text-primary-foreground dark:data-[state=active]:text-primary-foreground dark:data-[state=active]:border-transparent'>
             Project Overview</TabsTrigger>
+          <TabsTrigger value="landing-page"
+          className='data-[state=active]:bg-secondary dark:data-[state=active]:bg-secondary  data-[state=active]:text-primary-foreground dark:data-[state=active]:text-primary-foreground dark:data-[state=active]:border-transparent'>
+            Landing Page</TabsTrigger>
         </TabsList>
         <TabsContent value="images" className="w-full">
           <ImagesTab 
@@ -245,9 +248,10 @@ export const Step3 = ({ appName, appDescription, generatedText, generatedImages,
             appDescription={appDescription}
             imageDescriptions={generatedImages.map(img => img.description || '')}
             onContentUpdate={handleContentUpdate}
+            language={language}
           />
         </TabsContent>
-        <TabsContent value="project-details" className="w-full">
+  <TabsContent value="project-overview" className="w-full">
           <ProjectOverviewTab 
             appName={appName}
             appDescription={appDescription}
@@ -261,6 +265,9 @@ export const Step3 = ({ appName, appDescription, generatedText, generatedImages,
             language={language}
             device={device}
           />
+        </TabsContent>
+        <TabsContent value="landing-page" className="w-full">
+          <LandingPageTab />
         </TabsContent>
       </Tabs>
 

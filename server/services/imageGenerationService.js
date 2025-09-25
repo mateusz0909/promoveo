@@ -172,6 +172,11 @@ async function generateMockupImage(screenshotBuffer, device = 'iPhone') {
     return canvas;
 }
 
+async function generateDeviceMockupBuffer(screenshotBuffer, device = 'iPhone') {
+  const canvas = await generateMockupImage(screenshotBuffer, device);
+  return canvas.toBuffer('image/png');
+}
+
 // Find a font file in a directory based on family, weight, and other keywords
 function findFontFile(fontDir, family, weight) {
   const files = fs.readdirSync(fontDir);
@@ -335,4 +340,4 @@ async function generateAppStoreImage(heading, subheading, screenshotBuffer, head
 
 console.log('ImageGenerationService initialized.');
 
-module.exports = { generateAppStoreImage };
+module.exports = { generateAppStoreImage, generateDeviceMockupBuffer };

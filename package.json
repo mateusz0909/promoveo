@@ -1,5 +1,5 @@
 {
-  "name": "app-store-indiedev-assistant",
+  "name": "lemmi-studio",
   "private": true,
   "workspaces": [
     "client",
@@ -11,5 +11,8 @@
   },
   "dependencies": {
     "archiver": "^7.0.1"
+  },
+  "devDependencies": {
+    "supabase": "^2.40.7"
   }
 }

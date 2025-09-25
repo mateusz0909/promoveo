@@ -3,6 +3,14 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useProject } from '@/context/ProjectContext';
 import { UserAvatar } from './UserAvatar';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
 import { Button } from './ui/button';
 import { Separator } from './ui/separator';
 import {
@@ -17,6 +25,7 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from './ui/sidebar';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   PhotoIcon,
   DocumentTextIcon,
@@ -24,9 +33,11 @@ import {
   ClockIcon,
   Cog6ToothIcon,
   HomeIcon,
+  GlobeAltIcon,
+  ArrowLeftOnRectangleIcon,
 } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/utils';
-import promoveoLogo from '@/assets/promoveo.svg';
+import logo from '@/assets/logo.svg';
 
 interface Project {
   id: string;
@@ -39,7 +50,7 @@ interface Project {
 }
 
 interface AppSidebarProps {
-  onUserAvatarClick: () => void;
+  onUserAvatarClick?: () => void; // now optional, not used
 }
 
 const studioSubItems = [
@@ -49,19 +60,24 @@ const studioSubItems = [
     icon: PhotoIcon,
   },
   {
-    title: "Text content", 
+    title: "Text content",
     url: "/text-content",
     icon: DocumentTextIcon,
   },
   {
-    title: "Details",
-    url: "/details", 
+    title: "Landing page",
+    url: "/landing-page",
+    icon: GlobeAltIcon,
+  },
+  {
+    title: "Project overview",
+    url: "/overview",
     icon: InformationCircleIcon,
   },
 ];
 
-export function AppSidebar({ onUserAvatarClick }: AppSidebarProps) {
-  const { user, session } = useAuth();
+export function AppSidebar({ }: AppSidebarProps) {
+  const { user, session, signOut } = useAuth();
   const { currentProject } = useProject();
   const location = useLocation();
   const navigate = useNavigate();
@@ -79,7 +95,7 @@ export function AppSidebar({ onUserAvatarClick }: AppSidebarProps) {
     return location.pathname === '/' || 
            location.pathname === '/new-project' ||
            location.pathname.startsWith('/project/') ||
-           ['/images', '/text-content', '/details'].some(route => 
+           ['/images', '/text-content', '/overview', '/landing-page'].some(route => 
              location.pathname === route
            );
   };
@@ -104,8 +120,11 @@ export function AppSidebar({ onUserAvatarClick }: AppSidebarProps) {
     if (url === '/text-content') {
       return currentPath === `/project/${projectId}/text-content`;
     }
-    if (url === '/details') {
-      return currentPath === `/project/${projectId}/details`;
+    if (url === '/overview') {
+      return currentPath === `/project/${projectId}/overview`;
+    }
+    if (url === '/landing-page') {
+      return currentPath === `/project/${projectId}/landing-page`;
     }
     
     return false;
@@ -184,11 +203,16 @@ export function AppSidebar({ onUserAvatarClick }: AppSidebarProps) {
   const displayName = getDisplayName(user);
 
   return (
-    <Sidebar variant='sidebar'>
+    <TooltipProvider delayDuration={2000}>
+      <Sidebar variant='sidebar'>
       <SidebarHeader className="p-4">
         <Link to="/" className="flex items-center gap-2">
-          <img src={promoveoLogo} alt="Promoveo Logo" className="h-8 w-8" />
-          <span className="text-lg font-semibold">Promoveo</span>
+          <img 
+            src={logo} 
+            alt="Lemmi Studio Logo" 
+            className="h-8 w-8 dark:invert transition-all duration-200" 
+          />
+          <span className="text-lg font-semibold">Lemmi Studio</span>
         </Link>
       </SidebarHeader>
 
@@ -278,7 +302,7 @@ export function AppSidebar({ onUserAvatarClick }: AppSidebarProps) {
           >
             <div className="flex items-center gap-2">
               <ClockIcon className="h-4 w-4" />
-              History
+              Recent projects
             </div>
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -296,16 +320,28 @@ export function AppSidebar({ onUserAvatarClick }: AppSidebarProps) {
               ) : recentProjects.length > 0 ? (
                 recentProjects.map((project) => (
                   <SidebarMenuItem key={project.id}>
-                    <SidebarMenuButton
-                      onClick={() => handleProjectSelect(project.id)}
-                      className={cn(
-                        "w-full justify-start cursor-pointer",
-                        location.pathname === `/project/${project.id}` && 
-                        "bg-accent text-accent-foreground"
-                      )}
-                    >
-                      <span className="truncate">{project.inputAppName}</span>
-                    </SidebarMenuButton>
+                    <Tooltip delayDuration={800}>
+                      <TooltipTrigger asChild>
+                        <SidebarMenuButton
+                          onClick={() => handleProjectSelect(project.id)}
+                          className={cn(
+                            "w-full min-w-0 justify-start cursor-pointer text-left",
+                            location.pathname === `/project/${project.id}` && 
+                            "bg-accent text-accent-foreground"
+                          )}
+                        >
+                          <span
+                            className="max-w-35 truncate"
+                            title={project.inputAppName}
+                          >
+                            {project.inputAppName}
+                          </span>
+                        </SidebarMenuButton>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" align="center">
+                        <p className="max-w-[220px] break-words">{project.inputAppName}</p>
+                      </TooltipContent>
+                    </Tooltip>
                   </SidebarMenuItem>
                 ))
               ) : (
@@ -329,27 +365,52 @@ export function AppSidebar({ onUserAvatarClick }: AppSidebarProps) {
           </Link>
         </Button>
 
-        {/* User Avatar Section */}
+        {/* User Avatar Dropdown */}
         {user && (
-          <Button
-            variant="ghost"
-            className="justify-start p-2 h-auto"
-            onClick={onUserAvatarClick}
-          >
-            <div className="flex items-center space-x-3 w-full">
-              <UserAvatar user={user} size="sm" />
-              <div className="flex flex-col items-start text-left">
-                <p className="text-sm font-medium leading-none truncate max-w-[120px]">
-                  {displayName}
-                </p>
-                <p className="text-xs text-muted-foreground leading-none mt-1 truncate max-w-[120px]">
-                  {user.email}
-                </p>
-              </div>
-            </div>
-          </Button>
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="justify-start p-2 h-auto w-full">
+                <div className="flex items-center space-x-3 w-full">
+                  <UserAvatar user={user} size="sm" />
+                  <div className="flex flex-col items-start text-left">
+                    <p className="text-sm font-medium leading-none truncate max-w-[120px]">
+                      {displayName}
+                    </p>
+                    <p className="text-xs text-muted-foreground leading-none mt-1 truncate max-w-[120px]">
+                      {user.email}
+                    </p>
+                  </div>
+                </div>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuLabel className="flex flex-col items-center gap-2 py-4">
+                <UserAvatar user={user} size="lg" />
+                <div className="text-center">
+                  <div className="font-semibold text-base">{displayName}</div>
+                  <div className="text-xs text-muted-foreground">{user.email}</div>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <a href="/privacy" className="w-full">Privacy Policy</a>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a href="/terms" className="w-full">Terms of Service</a>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={async () => {
+                await signOut();
+                navigate('/login');
+              }} className="text-destructive font-semibold w-full flex items-center gap-2">
+                <ArrowLeftOnRectangleIcon className="h-4 w-4" />
+                Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </SidebarFooter>
-    </Sidebar>
+      </Sidebar>
+    </TooltipProvider>
   );
 }

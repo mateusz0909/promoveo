@@ -103,35 +103,37 @@ async function generateContent(appName, appDescription, imageDescriptions, langu
   try {
     console.log('GeminiService: sending request to Gemini API...');
     const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-                title: { type: Type.STRING },
-                subtitle: { type: Type.STRING },
-                promotionalText: { type: Type.STRING },
-                description: { type: Type.STRING },
-                keywords: { type: Type.STRING },
-                headings: {
-                    type: Type.ARRAY,
-                    items: {
-                        type: Type.OBJECT,
-                        properties: {
-                            heading: { type: Type.STRING },
-                            subheading: { type: Type.STRING },
-                        }
-                    }
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            title: { type: Type.STRING },
+            subtitle: { type: Type.STRING },
+            promotionalText: { type: Type.STRING },
+            description: { type: Type.STRING },
+            keywords: { type: Type.STRING },
+            headings: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  heading: { type: Type.STRING },
+                  subheading: { type: Type.STRING },
                 },
-            }
-          }
+                propertyOrdering: ["heading", "subheading"],
+              }
+            },
+          },
+          propertyOrdering: ["title", "subtitle", "promotionalText", "description", "keywords", "headings"],
         }
+      }
     });
-    const text = response.text;
     console.log('GeminiService: successfully received response from Gemini API.');
-    return JSON.parse(text);
+    console.log('GeminiService: Raw response text:', response.text);
+    return JSON.parse(response.text);
   } catch (error) {
     console.error("GeminiService: Error generating content:", error);
     throw error;

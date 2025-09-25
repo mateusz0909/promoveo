@@ -49,12 +49,8 @@ export function TopPanel({ currentProject }: TopPanelProps) {
       );
     }
 
-    // Default fallback
-    return (
-      <div className="flex items-center gap-2">
-        <span className="text-lg font-semibold">Promoveo</span>
-      </div>
-    );
+    // Default fallback - no content needed since sidebar shows app name
+    return null;
   };
 
   return (

@@ -3,6 +3,7 @@ dotenv.config();
 
 const express = require('express');
 const cors = require('cors');
+const tmpService = require('./services/tmpService');
 
 // Route imports
 const systemRoutes = require('./routes/system');
@@ -14,8 +15,19 @@ const userRoutes = require('./routes/users');
 const app = express();
 const port = process.env.PORT || 3001;
 
+// Initialize tmp directory management
+(async () => {
+  try {
+    await tmpService.ensureTmpDir();
+    await tmpService.cleanTmpDir({ log: false });
+    tmpService.scheduleTmpCleanup();
+  } catch (error) {
+    console.error('Failed to initialize tmp directory:', error);
+  }
+})();
+
 // Static file serving
-app.use('/static', express.static('tmp'));
+app.use('/static', express.static(tmpService.BASE_TMP_DIR));
 
 // Middleware
 app.use(cors());

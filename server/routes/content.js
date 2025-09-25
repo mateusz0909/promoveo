@@ -5,6 +5,7 @@ const contentController = require('../controllers/contentController');
 const imageController = require('../controllers/imageController');
 const fs = require('fs');
 const path = require('path');
+const tmpService = require('../services/tmpService');
 
 // Configure multer for file uploads
 const upload = multer({ 
@@ -12,7 +13,8 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
 });
 
-const diskUpload = multer({ dest: 'tmp/' });
+tmpService.ensureTmpDirSync();
+const diskUpload = multer({ dest: tmpService.getTmpDirPath() });
 
 const router = express.Router();
 

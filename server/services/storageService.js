@@ -3,9 +3,14 @@ const { supabase } = require('../lib/clients.js');
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs').promises;
 const path = require('path');
-const tempDir = path.join(__dirname, '..', 'tmp');
+const tmpService = require('./tmpService');
+const tempDir = tmpService.getTmpDirPath();
 
 const BUCKET_NAME = 'project-assets';
+
+function buildProjectAssetPath(userId, projectId, fileName, prefix = 'landing-pages') {
+  return `${prefix}/${userId}/${projectId}/${fileName}`;
+}
 
 /**
  * Uploads an image buffer to Supabase Storage.
@@ -149,7 +154,7 @@ async function downloadFileToTemp(url) {
     const buffer = Buffer.from(arrayBuffer);
 
     // Ensure the temp directory exists
-    await fs.mkdir(tempDir, { recursive: true });
+    await tmpService.ensureTmpDir();
 
     const fileName = path.basename(new URL(url).pathname);
     const tempFileName = `${uuidv4()}-${fileName}`;
@@ -162,5 +167,54 @@ async function downloadFileToTemp(url) {
     throw new Error('Failed to download file.');
   }
 }
+async function uploadProjectAsset(userId, projectId, fileName, fileBuffer, mimetype, options = {}) {
+  const { prefix = 'landing-pages', cacheControl = '3600', upsert = true } = options;
+  const filePath = buildProjectAssetPath(userId, projectId, fileName, prefix);
 
-module.exports = { uploadImageToSupabase, replaceImageInSupabase, cleanupOldImageVersion, downloadFileToTemp };
+  const { error } = await supabase.storage
+    .from(BUCKET_NAME)
+    .upload(filePath, fileBuffer, {
+      contentType: mimetype,
+      cacheControl,
+      upsert,
+    });
+
+  if (error) {
+    console.error('Error uploading project asset to Supabase:', error.message);
+    throw new Error('Failed to upload project asset to Supabase Storage.');
+  }
+
+  const { data: { publicUrl } } = supabase.storage
+    .from(BUCKET_NAME)
+    .getPublicUrl(filePath);
+
+  return {
+    publicUrl: publicUrl.split('?')[0],
+    path: filePath,
+  };
+}
+
+async function deleteProjectAsset(filePath) {
+  if (!filePath) return;
+  try {
+    const { error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .remove([filePath]);
+
+    if (error) {
+      console.warn('Warning: Failed to delete project asset:', filePath, error.message);
+    }
+  } catch (error) {
+    console.warn('Warning: Exception during project asset deletion:', error);
+  }
+}
+
+module.exports = {
+  uploadImageToSupabase,
+  replaceImageInSupabase,
+  cleanupOldImageVersion,
+  downloadFileToTemp,
+  buildProjectAssetPath,
+  uploadProjectAsset,
+  deleteProjectAsset,
+};

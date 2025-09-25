@@ -8,18 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useBreadcrumb } from "@/context/BreadcrumbContext";
 import { useProject } from "@/context/ProjectContext";
 import { Spinner } from "@/components/ui/shadcn-io/spinner";
-
-interface GeneratedText {
-  title: string;
-  subtitle: string;
-  promotionalText: string;
-  description: string;
-  keywords: string;
-  headings: {
-    heading: string;
-    subheading: string;
-  }[];
-}
+import type { GeneratedImage, GeneratedImageConfiguration, GeneratedText } from '@/types/project';
 
 // This component will wrap the multi-step form for creating/editing a project
 export function ProjectWorkspace() {
@@ -39,7 +28,7 @@ export function ProjectWorkspace() {
   const [device, setDevice] = useState("iPhone");
   const [imageDescriptions, setImageDescriptions] = useState<string[]>([]);
   const [generatedText, setGeneratedText] = useState<GeneratedText | null>(null);
-  const [generatedImages, setGeneratedImages] = useState<any[]>([]);
+  const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingProject, setIsLoadingProject] = useState(false);
   const [createdProjectId, setCreatedProjectId] = useState<string | undefined>();
@@ -126,10 +115,14 @@ export function ProjectWorkspace() {
   const handleNext = () => setStep(step + 1);
   const handleBack = () => setStep(step - 1);
   
-  const handleImageSave = async (newImageUrl: string, imageIndex: number, configuration: any) => {
+  const handleImageSave = async (newImageUrl: string, imageIndex: number, configuration: GeneratedImageConfiguration) => {
     const updatedImages = [...generatedImages];
-    updatedImages[imageIndex].generatedImageUrl = `${newImageUrl}`;
-    updatedImages[imageIndex].configuration = configuration;
+    const imageToUpdate = updatedImages[imageIndex];
+    if (!imageToUpdate) {
+      return;
+    }
+    imageToUpdate.generatedImageUrl = `${newImageUrl}`;
+    imageToUpdate.configuration = configuration;
     setGeneratedImages(updatedImages);
   };
 

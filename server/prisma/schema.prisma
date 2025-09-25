@@ -7,7 +7,8 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // NOTE: This User model mirrors the 'auth.users' table from Supabase.
@@ -30,6 +31,10 @@ model Project {
   language            String?
   device              String?
   generatedAsoText    Json? // Stores headings, descriptions, keywords as JSON
+  landingPageConfig   Json?
+  landingPageZipUrl   String?
+  landingPageZipStoragePath String?
+  landingPageZipUpdatedAt DateTime?
 
   // Relation to the user who owns it
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)

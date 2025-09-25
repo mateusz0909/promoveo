@@ -6,6 +6,7 @@ const { prisma } = require('../lib/clients');
 const axios = require('axios');
 const path = require('path');
 const fs = require('fs');
+const tmpService = require('../services/tmpService');
 
 const imageController = {
   // Regenerate a single image
@@ -34,11 +35,12 @@ const imageController = {
         }
       );
 
-      const timestamp = Date.now();
-      const outputFilename = `regenerated-${timestamp}.png`;
-      const outputPath = path.join('tmp', outputFilename);
-      
-      fs.writeFileSync(outputPath, imageBuffer);
+  const timestamp = Date.now();
+  const outputFilename = `regenerated-${timestamp}.png`;
+  const outputPath = tmpService.getTmpDirPath(outputFilename);
+
+  await tmpService.ensureTmpDir();
+  fs.writeFileSync(outputPath, imageBuffer);
       
       const imageUrl = `/static/${outputFilename}`;
       
@@ -188,6 +190,10 @@ const imageController = {
     } catch (error) {
       console.error("Error in generateImageDescription:", error);
       res.status(500).json({ error: "Error generating image description" });
+    } finally {
+      if (file?.path) {
+        await tmpService.removeEntry(file.path);
+      }
     }
   },
 
@@ -200,8 +206,9 @@ const imageController = {
       return res.status(400).json({ error: 'No image URLs provided' });
     }
 
-    const downloadDir = path.join(__dirname, '..', 'tmp', `zip_downloads_${Date.now()}`);
+    const downloadDir = tmpService.getTmpDirPath(`zip_downloads_${Date.now()}`);
     const downloadedImagePaths = [];
+    let zipFilePath;
 
     try {
       fs.mkdirSync(downloadDir, { recursive: true });
@@ -225,7 +232,7 @@ const imageController = {
       }
 
       const zipFileName = `app_images_${Date.now()}.zip`;
-      const zipFilePath = path.join(__dirname, '..', 'tmp', zipFileName);
+      zipFilePath = tmpService.getTmpDirPath(zipFileName);
 
       await zipService.createZipArchive(downloadedImagePaths, zipFilePath);
 
@@ -235,14 +242,22 @@ const imageController = {
           res.status(500).json({ error: 'Error sending zip file' });
         }
         // Clean up after download
-        fs.unlinkSync(zipFilePath);
-        fs.rmSync(downloadDir, { recursive: true, force: true });
+        tmpService.removeEntry(zipFilePath).catch(cleanupError => {
+          console.warn('Failed to remove zip file after download:', cleanupError);
+        });
+        tmpService.removeEntry(downloadDir).catch(cleanupError => {
+          console.warn('Failed to remove download directory after download:', cleanupError);
+        });
       });
 
     } catch (error) {
       console.error("Error in downloadImagesZip:", error);
       res.status(500).json({ error: "Error creating or downloading zip file" });
-      fs.rmSync(downloadDir, { recursive: true, force: true }); // Clean up on error
+      const cleanupPromises = [tmpService.removeEntry(downloadDir)];
+      if (zipFilePath) {
+        cleanupPromises.push(tmpService.removeEntry(zipFilePath));
+      }
+      await Promise.allSettled(cleanupPromises);
     }
   },
 

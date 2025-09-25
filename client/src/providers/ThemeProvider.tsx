@@ -12,7 +12,7 @@ const ThemeProviderContext = createContext<ThemeContextType | undefined>(undefin
 export function ThemeProvider({
   children,
   defaultTheme = "dark",
-  storageKey = "appstorefire-theme",
+  storageKey = "lemmi-studio-theme",
 }: {
   children: React.ReactNode;
   defaultTheme?: Theme;

@@ -1,8 +1,14 @@
-const { prisma } = require('../lib/clients');
-const { replaceImageInSupabase, cleanupOldImageVersion } = require('../services/storageService');
-const { generateLandingPage } = require('../services/landingPageService');
-const { createZipArchive } = require('../services/zipService');
+const path = require('path');
 const fs = require('fs');
+const { prisma } = require('../lib/clients');
+const {
+  replaceImageInSupabase,
+  cleanupOldImageVersion,
+  uploadProjectAsset,
+  deleteProjectAsset,
+  downloadFileToTemp,
+} = require('../services/storageService');
+const { generateLandingPage } = require('../services/landingPageService');
 
 const projectController = {
   // Get all projects for the authenticated user
@@ -110,41 +116,6 @@ const projectController = {
     } catch (error) {
       console.error('Error in update-project:', error);
       res.status(500).json({ error: 'Error updating project' });
-    }
-  },
-
-  async downloadLandingPage(req, res) {
-    try {
-      const { id } = req.params;
-      const userId = req.user.id;
-
-      const project = await prisma.project.findFirst({
-        where: { id, userId },
-        include: {
-          generatedImages: true,
-        },
-      });
-
-      if (!project) {
-        return res.status(404).json({ error: 'Project not found' });
-      }
-
-      const zipFilePath = await generateLandingPage(project, project.generatedImages);
-
-      res.download(zipFilePath, `${project.inputAppName}-landing-page.zip`, (err) => {
-        if (err) {
-          console.error('Error sending landing page zip:', err);
-        }
-        // Cleanup the zip file
-        fs.unlink(zipFilePath, (unlinkErr) => {
-          if (unlinkErr) {
-            console.error('Error deleting landing page zip file:', unlinkErr);
-          }
-        });
-      });
-    } catch (error) {
-      console.error('Error generating landing page:', error);
-      res.status(500).json({ error: 'Error generating landing page' });
     }
   },
 
@@ -311,6 +282,196 @@ const projectController = {
     } catch (error) {
       console.error("Failed to save project:", error);
       res.status(500).json({ error: "Could not save the project." });
+    }
+  },
+
+  async getLandingPageState(req, res) {
+    try {
+      const { id } = req.params;
+      const userId = req.user.id;
+
+      const project = await prisma.project.findFirst({
+        where: { id, userId },
+        select: {
+          landingPageConfig: true,
+          landingPageZipUrl: true,
+          landingPageZipUpdatedAt: true,
+        },
+      });
+
+      if (!project) {
+        return res.status(404).json({ error: 'Project not found' });
+      }
+
+      return res.status(200).json({
+        config: project.landingPageConfig || null,
+        downloadUrl: project.landingPageZipUrl || null,
+        updatedAt: project.landingPageZipUpdatedAt || null,
+      });
+    } catch (error) {
+      console.error('Error in get-landing-page-state:', error);
+      res.status(500).json({ error: 'Error retrieving landing page data' });
+    }
+  },
+
+  async generateLandingPagePackage(req, res) {
+    try {
+      console.log('generate-landing-page: Received request for project:', req.params.id);
+
+      const projectId = req.params.id;
+      const userId = req.user.id;
+
+      const project = await prisma.project.findFirst({
+        where: {
+          id: projectId,
+          userId,
+        },
+        include: {
+          generatedImages: true,
+        },
+      });
+
+      if (!project) {
+        return res.status(404).json({ error: 'Project not found' });
+      }
+
+      const appStoreId = (req.body.appStoreId || '').trim();
+      const selectedImageId = req.body.selectedImageId || '';
+
+      if (!appStoreId) {
+        return res.status(400).json({ error: 'App Store ID is required' });
+      }
+
+      if (!selectedImageId) {
+        return res.status(400).json({ error: 'Selected image is required' });
+      }
+
+      const selectedImage = project.generatedImages.find((image) => image.id === selectedImageId);
+      if (!selectedImage) {
+        return res.status(400).json({ error: 'Selected image does not belong to this project' });
+      }
+
+      const existingConfig = project.landingPageConfig || {};
+      let logoInfo = existingConfig.logo || null;
+      let logoForGeneration = null;
+      const existingLogoPath = logoInfo?.storagePath || null;
+
+      const logoFiles = req.files && (req.files.logo || req.files['logo']);
+      if (Array.isArray(logoFiles) && logoFiles.length > 0) {
+        const file = logoFiles[0];
+        const fileBuffer = fs.readFileSync(file.path);
+        const extension = path.extname(file.originalname) || '';
+        const normalizedExtension = extension.replace('.', '').toLowerCase() || 'png';
+        const storageFileName = `logo.${normalizedExtension}`;
+
+        const { publicUrl, path: storagePath } = await uploadProjectAsset(
+          userId,
+          project.id,
+          storageFileName,
+          fileBuffer,
+          file.mimetype,
+          {
+            prefix: 'landing-pages',
+            cacheControl: '604800',
+            upsert: true,
+          }
+        );
+
+        if (existingLogoPath && existingLogoPath !== storagePath) {
+          await deleteProjectAsset(existingLogoPath).catch((error) => {
+            console.warn('generate-landing-page: Failed to delete previous logo asset', error);
+          });
+        }
+
+        logoInfo = {
+          storagePath,
+          publicUrl,
+          originalName: file.originalname,
+          mimetype: file.mimetype,
+          uploadedAt: new Date().toISOString(),
+        };
+
+        logoForGeneration = {
+          originalname: file.originalname,
+          buffer: fileBuffer,
+        };
+
+        fs.unlink(file.path, (error) => {
+          if (error) {
+            console.warn('generate-landing-page: Failed to clean up temp logo upload', error);
+          }
+        });
+      } else if (logoInfo?.publicUrl) {
+        try {
+          const tempLogoPath = await downloadFileToTemp(logoInfo.publicUrl);
+          const existingLogoBuffer = await fs.promises.readFile(tempLogoPath);
+          await fs.promises.unlink(tempLogoPath).catch(() => {});
+
+          logoForGeneration = {
+            originalname: logoInfo.originalName || 'logo.png',
+            buffer: existingLogoBuffer,
+          };
+        } catch (error) {
+          console.warn('generate-landing-page: Failed to load existing logo from storage', error);
+        }
+      }
+
+      const zipFilePath = await generateLandingPage(project, project.generatedImages, {
+        appStoreId,
+        selectedImage,
+        logoFile: logoForGeneration,
+      });
+
+      const zipBuffer = await fs.promises.readFile(zipFilePath);
+
+      const { publicUrl: zipUrl, path: zipStoragePath } = await uploadProjectAsset(
+        userId,
+        project.id,
+        'landing-page.zip',
+        zipBuffer,
+        'application/zip',
+        {
+          prefix: 'landing-pages',
+          cacheControl: '86400',
+          upsert: true,
+        }
+      );
+
+      await fs.promises.unlink(zipFilePath).catch((error) => {
+        console.warn('generate-landing-page: Failed to remove temp zip file', error);
+      });
+
+      const landingPageConfig = {
+        appStoreId,
+        selectedImageId,
+        logo: logoInfo,
+      };
+
+      const updatedProject = await prisma.project.update({
+        where: { id: project.id },
+        data: {
+          landingPageConfig,
+          landingPageZipUrl: zipUrl,
+          landingPageZipStoragePath: zipStoragePath,
+          landingPageZipUpdatedAt: new Date(),
+        },
+        select: {
+          landingPageConfig: true,
+          landingPageZipUrl: true,
+          landingPageZipUpdatedAt: true,
+        },
+      });
+
+      return res.status(200).json({
+        message: 'Landing page generated successfully',
+        downloadUrl: updatedProject.landingPageZipUrl,
+        updatedAt: updatedProject.landingPageZipUpdatedAt,
+        config: updatedProject.landingPageConfig,
+        appStoreUrl: `https://apps.apple.com/app/id${appStoreId}`,
+      });
+    } catch (error) {
+      console.error('Error in generate-landing-page:', error);
+      res.status(500).json({ error: 'Error generating landing page' });
     }
   }
 };

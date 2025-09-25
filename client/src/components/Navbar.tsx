@@ -10,8 +10,8 @@ export function Navbar() {
   return (
     <header className="flex items-center justify-between px-4 py-2 border-b">
       <Link to="/" className="flex items-center gap-2">
-        <img src="/promeveo.svg" alt="Promoveo Logo" className="h-8" />
-        <h1 className="text-xl font-bold">Promoveo</h1>
+        <img src="/promeveo.svg" alt="Lemmi Studio Logo" className="h-8" />
+        <h1 className="text-xl font-bold">Lemmi Studio</h1>
       </Link>
       <div className="flex items-center gap-4">
         {user ? (
