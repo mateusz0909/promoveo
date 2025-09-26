@@ -6,6 +6,8 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { PrivacyPolicyPage } from "./pages/PrivacyPolicyPage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AuthRouter } from "./pages/AuthRouter";
+import { AdminTemplatesPage } from "./pages/AdminTemplatesPage";
+import { AdminRoute } from "./components/AdminRoute";
 
 export function AppRouter() {
   const location = useLocation();
@@ -144,6 +146,14 @@ export function AppRouter() {
             <ProtectedRoute>
               <PrivacyPolicyPage />
             </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/templates"
+          element={
+            <AdminRoute>
+              <AdminTemplatesPage />
+            </AdminRoute>
           }
         />
       </Routes>

@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { 
   PlusIcon, 
   ClockIcon, 
@@ -112,6 +113,14 @@ export const StudioDashboard: React.FC<StudioDashboardProps> = ({ className }) =
             Create compelling App Store marketing content with AI-powered tools.
             Generate descriptions, optimize keywords, and design beautiful marketing images.
           </p>
+          <div className="flex justify-center md:justify-start">
+            <Button asChild size="lg" className="gap-2">
+              <Link to="/new-project">
+                <PlusIcon className="h-5 w-5" />
+                Create New Project
+              </Link>
+            </Button>
+          </div>
         </div>
         <div className="relative flex justify-center md:justify-end">
           <div className="relative w-full max-w-[420px] overflow-hidden rounded-3xl p-4 backdrop-blur">
@@ -125,20 +134,8 @@ export const StudioDashboard: React.FC<StudioDashboardProps> = ({ className }) =
       </div>
 
 
-      {/* Primary Action: Only show if there are recent projects */}
-      {recentProjects.length > 0 && (
-        <div className="flex justify-center">
-          <Button asChild variant="default" className="gap-2">
-            <Link to="/new-project">
-              <PlusIcon className="h-5 w-5" />
-              Create New Project
-            </Link>
-          </Button>
-        </div>
-      )}
-
       {/* Recent Projects Section */}
-      {recentProjects.length > 0 ? (
+      {(isLoadingProjects || recentProjects.length > 0) ? (
         <Card>
           <CardHeader className="pb-4">
             <div className="flex items-center justify-between">
@@ -162,15 +159,20 @@ export const StudioDashboard: React.FC<StudioDashboardProps> = ({ className }) =
           <CardContent className="p-0">
             <div className="space-y-0">
               {isLoadingProjects ? (
-                // Loading skeleton
-                Array.from({ length: 3 }).map((_, i) => (
-                  <div key={`skeleton-${i}`} className="flex items-center space-x-4 p-4 border-b last:border-b-0">
-                    <div className="h-12 w-12 bg-muted rounded-lg animate-pulse" />
+                Array.from({ length: 4 }).map((_, i) => (
+                  <div
+                    key={`skeleton-${i}`}
+                    className="flex items-center gap-4 p-4 border-b last:border-b-0"
+                  >
+                    <Skeleton className="h-12 w-12 rounded-xl" />
                     <div className="flex-1 space-y-2">
-                      <div className="h-4 w-3/4 bg-muted rounded animate-pulse" />
-                      <div className="h-3 w-1/2 bg-muted rounded animate-pulse" />
+                      <Skeleton className="h-4 w-3/4" />
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="h-3 w-16 rounded-full" />
+                        <Skeleton className="h-3 w-20 rounded-full" />
+                      </div>
                     </div>
-                    <div className="h-6 w-16 bg-muted rounded animate-pulse" />
+                    <Skeleton className="h-5 w-5 rounded-full" />
                   </div>
                 ))
               ) : (

@@ -4,13 +4,13 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { useImageEditor } from "../hooks/useImageEditor";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
 import { Textarea } from "./ui/textarea";
 import { ThemeSelector } from "./ThemeSelector";
 import { preloadFonts } from "../utils/fontLoader";
-import type { GeneratedImage, GeneratedImageConfiguration, ImageEditorTheme } from '@/types/project';
+import type { GeneratedImage, GeneratedImageConfiguration, ImageEditorTheme, TemplateSummary } from '@/types/project';
 
 interface ImageEditorProps {
   isOpen: boolean;
@@ -21,6 +21,8 @@ interface ImageEditorProps {
   onSave: (newImageUrl: string, imageIndex: number, configuration: GeneratedImageConfiguration) => Promise<void>;
   projectId?: string;
   device?: string;
+  templates?: TemplateSummary[];
+  selectedTemplateId?: string | null;
 }
 
 type DraggableElement = "mockup" | "heading" | "subheading" | null;
@@ -47,7 +49,18 @@ const themes: Record<ImageEditorTheme, {
   },
 };
 
-export const ImageEditor = ({ isOpen, onClose, imageData, imageIndex, fonts, onSave, projectId, device }: ImageEditorProps) => {
+export const ImageEditor = ({
+  isOpen,
+  onClose,
+  imageData,
+  imageIndex,
+  fonts,
+  onSave,
+  projectId,
+  device,
+  templates = [],
+  selectedTemplateId = null,
+}: ImageEditorProps) => {
   const auth = useAuth();
   const session = auth?.session;
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -69,6 +82,29 @@ export const ImageEditor = ({ isOpen, onClose, imageData, imageIndex, fonts, onS
 
   const [isDragging, setIsDragging] = useState(false);
   const [dragTarget, setDragTarget] = useState<DraggableElement>(null);
+
+  const activeTemplate = useMemo(() => {
+    if (!templates.length) {
+      return null;
+    }
+
+    const imageTemplateId = imageData?.configuration?.templateId ?? null;
+    if (imageTemplateId) {
+      const found = templates.find((template) => template.id === imageTemplateId);
+      if (found) {
+        return found;
+      }
+    }
+
+    if (selectedTemplateId) {
+      const fallback = templates.find((template) => template.id === selectedTemplateId);
+      if (fallback) {
+        return fallback;
+      }
+    }
+
+    return templates[0] ?? null;
+  }, [templates, imageData?.configuration?.templateId, selectedTemplateId]);
   
   const dragStartCoords = useRef({ x: 0, y: 0 });
   const initialElementPosition = useRef({ x: 0, y: 0 });
@@ -305,6 +341,7 @@ export const ImageEditor = ({ isOpen, onClose, imageData, imageIndex, fonts, onS
       }
 
       const configuration: GeneratedImageConfiguration = {
+        ...(imageData.configuration ?? {}),
         heading,
         subheading,
         headingFont,
@@ -375,6 +412,15 @@ export const ImageEditor = ({ isOpen, onClose, imageData, imageIndex, fonts, onS
           </div>
           <div className="col-span-4 h-full w-full flex flex-col overflow-y-auto space-y-2 p-4 rounded-md border ">
             <h3 className="text-lg font-semibold">Controls</h3>
+            {activeTemplate ? (
+              <div className="rounded-md border border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground">
+                <p className="font-semibold uppercase tracking-wide">Template</p>
+                <p className="mt-1 text-sm font-medium text-foreground">{activeTemplate.name}</p>
+                {activeTemplate.description ? (
+                  <p className="mt-1 line-clamp-3">{activeTemplate.description}</p>
+                ) : null}
+              </div>
+            ) : null}
             <div>
               <Label>Theme</Label>
               <ThemeSelector selectedTheme={selectedTheme} setSelectedTheme={setSelectedTheme} />

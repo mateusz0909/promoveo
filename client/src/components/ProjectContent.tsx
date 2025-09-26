@@ -7,7 +7,7 @@ import { LandingPageTab } from './tabs/LandingPageTab';
 import { ImageEditor } from './ImageEditor';
 import { toast } from "sonner";
 import { useAuth } from '../context/AuthContext';
-import type { GeneratedImage, GeneratedImageConfiguration, GeneratedText } from '@/types/project';
+import type { GeneratedImage, GeneratedImageConfiguration, GeneratedText, TemplateSummary } from '@/types/project';
 
 interface ProjectContentProps {
   appName: string;
@@ -23,6 +23,10 @@ interface ProjectContentProps {
   language?: string;
   createdAt?: string;
   updatedAt?: string;
+  templates: TemplateSummary[];
+  selectedTemplateId: string | null;
+  onSelectTemplate: (templateId: string | null) => void;
+  isLoadingTemplates: boolean;
 }
 
 export const ProjectContent: React.FC<ProjectContentProps> = (props) => {
@@ -49,6 +53,10 @@ export const ProjectContent: React.FC<ProjectContentProps> = (props) => {
     language,
     createdAt,
     updatedAt,
+    templates,
+    selectedTemplateId,
+    onSelectTemplate,
+    isLoadingTemplates,
   } = props;
 
   useEffect(() => {
@@ -328,6 +336,10 @@ export const ProjectContent: React.FC<ProjectContentProps> = (props) => {
           onDownloadAll={handleDownloadAll}
           onDownloadSingle={handleDownloadSingleImage}
           onEdit={handleEdit}
+          templates={templates}
+          selectedTemplateId={selectedTemplateId}
+          onSelectTemplate={onSelectTemplate}
+          isLoadingTemplates={isLoadingTemplates}
         />
       )}
 
@@ -344,6 +356,8 @@ export const ProjectContent: React.FC<ProjectContentProps> = (props) => {
         onSave={handleImageSave}
         projectId={projectId}
         device={device}
+        templates={templates}
+        selectedTemplateId={selectedTemplateId}
       />
     </div>
   );

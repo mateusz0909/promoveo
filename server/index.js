@@ -11,6 +11,7 @@ const contentRoutes = require('./routes/content');
 const imageRoutes = require('./routes/images');
 const projectRoutes = require('./routes/projects');
 const userRoutes = require('./routes/users');
+const templateRoutes = require('./routes/templates');
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -39,6 +40,7 @@ app.use('/api', contentRoutes);
 app.use('/api/images', imageRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/templates', templateRoutes);
 
 // Legacy routes are now migrated to appropriate controllers
 

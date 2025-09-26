@@ -3,27 +3,39 @@ import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { LazyImage } from '../LazyImage';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
+import { Skeleton } from "../ui/skeleton";
+import { cn } from "@/lib/utils";
 import { PencilIcon, ArrowDownTrayIcon, PhotoIcon, FolderArrowDownIcon, EyeIcon } from "@heroicons/react/24/outline";
 import { CheckCircleIcon } from "@heroicons/react/24/solid";
 import { useState } from 'react';
 import { ImageZoom } from "@/components/ui/shadcn-io/image-zoom";
-import type { GeneratedImage } from '@/types/project';
+import type { GeneratedImage, TemplateSummary } from '@/types/project';
 
 interface ImagesTabProps {
   imageList: GeneratedImage[];
   onDownloadAll: () => Promise<void>;
   onDownloadSingle: (imageUrl: string) => Promise<void>;
   onEdit: (image: GeneratedImage, index: number) => void;
+  templates: TemplateSummary[];
+  selectedTemplateId: string | null;
+  onSelectTemplate: (templateId: string | null) => void;
+  isLoadingTemplates: boolean;
 }
 
 export const ImagesTab = ({ 
   imageList, 
   onDownloadAll, 
   onDownloadSingle, 
-  onEdit 
+  onEdit,
+  templates,
+  selectedTemplateId,
+  onSelectTemplate,
+  isLoadingTemplates,
 }: ImagesTabProps) => {
   const [downloadingStates, setDownloadingStates] = useState<Record<number, boolean>>({});
   const [showOriginalScreenshots, setShowOriginalScreenshots] = useState(false);
+
+  const selectedTemplate = templates.find((template) => template.id === selectedTemplateId) ?? null;
 
   const originalScreenshots = imageList.filter(
     (image): image is GeneratedImage & { sourceScreenshotUrl: string } =>
@@ -97,6 +109,79 @@ export const ImagesTab = ({
             </div>
           </CardHeader>
 
+        <div className="px-6 pb-4">
+          <div className="flex flex-col gap-3 rounded-lg border border-border/60 bg-muted/20 p-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Template</p>
+                <p className="text-xs text-muted-foreground">
+                  Choose how your marketing images are composed. Changes apply to future generations.
+                </p>
+              </div>
+              {selectedTemplate ? (
+                <Badge variant="secondary" className="w-fit">
+                  Current: {selectedTemplate.name}
+                </Badge>
+              ) : null}
+            </div>
+
+            {isLoadingTemplates ? (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <Skeleton key={index} className="h-12 w-full rounded-md" />
+                ))}
+              </div>
+            ) : templates.length > 0 ? (
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {templates.map((template) => {
+                  const isSelected = template.id === selectedTemplateId;
+                  return (
+                    <button
+                      key={template.id}
+                      type="button"
+                      onClick={() => onSelectTemplate(template.id)}
+                      className={cn(
+                        "flex items-center justify-between gap-3 rounded-md border border-border/60 bg-background/70 px-4 py-3 text-left transition",
+                        "hover:border-primary/50 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                        isSelected && "border-primary shadow-sm"
+                      )}
+                      aria-pressed={isSelected}
+                    >
+                      <div className="flex flex-col gap-1">
+                        <span className="text-sm font-medium leading-tight">{template.name}</span>
+                        {template.description ? (
+                          <span className="text-xs text-muted-foreground line-clamp-2">{template.description}</span>
+                        ) : null}
+                        {template.tags && template.tags.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {template.tags.slice(0, 3).map((tag) => (
+                              <Badge key={tag} variant="outline" className="text-[10px]">
+                                {tag}
+                              </Badge>
+                            ))}
+                            {template.tags.length > 3 ? (
+                              <Badge variant="outline" className="text-[10px]">
+                                +{template.tags.length - 3}
+                              </Badge>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                      <Badge variant={isSelected ? "default" : "outline"} className="shrink-0">
+                        {isSelected ? "Selected" : "Choose"}
+                      </Badge>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="rounded-md border border-dashed border-border/60 px-4 py-6 text-center text-xs text-muted-foreground">
+                No templates available yet. Ask your administrator to publish one.
+              </div>
+            )}
+          </div>
+        </div>
+
           {showOriginalScreenshots && originalScreenshots.length > 0 && (
             <CardContent>
               <div className="space-y-3">
@@ -139,6 +224,9 @@ export const ImagesTab = ({
               }
 
               const generatedUrl = image.generatedImageUrl;
+              const templateForImage = image.configuration?.templateId
+                ? templates.find((template) => template.id === image.configuration?.templateId)
+                : selectedTemplate;
 
               return (
                 <Card key={index} className="group overflow-hidden border border-border/50 hover:border-border hover:shadow-md max-w-xs transition-all duration-200">
@@ -233,6 +321,15 @@ export const ImagesTab = ({
                           </span>
                         </div>
                       )}
+
+                      {templateForImage ? (
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs text-muted-foreground">Template</p>
+                          <Badge variant="outline" className="text-xs">
+                            {templateForImage.name}
+                          </Badge>
+                        </div>
+                      ) : null}
                     </div>
                   </CardContent>
                 </Card>

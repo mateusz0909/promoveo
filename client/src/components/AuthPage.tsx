@@ -78,7 +78,7 @@ export function AuthPage({ type }: { type: "login" | "signup" }) {
           <div className="flex justify-center">
             <img src={logo} alt="Lemmi Studio Logo" className="h-12 dark:invert transition-all duration-200" />
           </div>
-          <CardTitle className="text-3xl font-bold">{title}</CardTitle>
+          <CardTitle className="text-3xl text-pri font-bold">{title}</CardTitle>
           <CardDescription className="text-base">{description}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

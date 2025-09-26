@@ -36,7 +36,12 @@ const contentController = {
         const screenshotPath = file.path;
         
         console.log(`Generating App Store image ${i + 1} for file ${file.originalname}`);
-        const imageBuffer = await imageGenerationService.generateAppStoreImage(heading, subheading, screenshotPath);
+        const { imageBuffer } = await imageGenerationService.generateAppStoreImage({
+          heading,
+          subheading,
+          screenshotPath,
+          device: 'iPhone',
+        });
         
         const timestamp = Date.now();
         const outputFilename = `generated-${timestamp}-${file.filename}`;
@@ -75,7 +80,7 @@ const contentController = {
       console.log('Request files:', req.files ? req.files.length : 'No files');
       
       // Extract text data and user info - use appName as the single source of truth
-      const { appName, appDescription, imageDescriptions, language, device } = req.body;
+  const { appName, appDescription, imageDescriptions, language, device, templateId, templateVersionId } = req.body;
       console.log('Extracted data:', { appName, appDescription, language, device });
       console.log('Raw imageDescriptions:', imageDescriptions);
       
@@ -170,16 +175,18 @@ const contentController = {
 
         console.log(`generate-and-save: Generating marketing image ${i + 1}`);
         // Generate the App Store marketing image
-        const generatedImageResult = await imageGenerationService.generateAppStoreImage(
+        const generatedImageResult = await imageGenerationService.generateAppStoreImage({
           heading,
           subheading,
-          file.buffer,
-          font.headingFont || 'Farro',
-          font.subheadingFont || 'Headland One',
-          font.headingFontSize || 120,
-          font.subheadingFontSize || 69,
-          device
-        );
+          screenshotBuffer: file.buffer,
+          device,
+          headingFontFamily: font.headingFont || 'Farro',
+          subheadingFontFamily: font.subheadingFont || 'Headland One',
+          headingFontSize: font.headingFontSize || 120,
+          subheadingFontSize: font.subheadingFontSize || 69,
+          templateId: templateId || null,
+          templateVersionId: templateVersionId || null,
+        });
 
         console.log(`generate-and-save: Uploading generated image ${i + 1} - buffer size: ${generatedImageResult.imageBuffer.length} bytes`);
         // Upload the generated marketing image to Supabase Storage
@@ -194,9 +201,26 @@ const contentController = {
           sourceScreenshotUrl,
           generatedImageUrl,
           accentColor: generatedImageResult.accentColor,
+          templateVersionId: generatedImageResult.templateVersionId || templateVersionId || null,
           configuration: {
             heading,
             subheading,
+            headingFont: font.headingFont || 'Farro',
+            subheadingFont: font.subheadingFont || 'Headland One',
+            headingFontSize: font.headingFontSize || 120,
+            subheadingFontSize: font.subheadingFontSize || 69,
+            templateId: generatedImageResult.templateId || templateId || null,
+            templateVersionId: generatedImageResult.templateVersionId || templateVersionId || null,
+            theme: 'accent',
+            mockupX: 0,
+            mockupY: 0,
+            headingX: 0,
+            headingY: 0,
+            subheadingX: 0,
+            subheadingY: 0,
+            headingColor: null,
+            subheadingColor: null,
+            backgroundColor: null,
             font,
           }
         });
@@ -232,6 +256,7 @@ const contentController = {
               sourceScreenshotUrl: img.sourceScreenshotUrl,
               generatedImageUrl: img.generatedImageUrl,
               accentColor: img.accentColor,
+              templateVersionId: img.templateVersionId || null,
               configuration: img.configuration,
             }))
           }

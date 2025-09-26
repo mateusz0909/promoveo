@@ -239,7 +239,7 @@ export const ProjectOverviewTab = ({
                   onClick={() => saveProject(true)}
                   disabled={!hasUnsavedChanges || isSaving}
                   size="sm"
-                  variant={hasUnsavedChanges ? "default" : "outline"}
+                  variant={hasUnsavedChanges ? "secondary" : "outline"}
                   className="min-w-[96px]"
                 >
                   {isSaving ? (

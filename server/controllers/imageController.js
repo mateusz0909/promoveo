@@ -13,7 +13,25 @@ const imageController = {
   async regenerateImage(req, res) {
     try {
       console.log('regenerate-image: Received request');
-      const { heading, subheading, screenshotPath, device = 'iphone', font = {} } = req.body;
+      const {
+        heading,
+        subheading,
+        screenshotPath,
+        device = 'iphone',
+        font = {},
+        templateId,
+        templateVersionId,
+        theme,
+        headingX,
+        headingY,
+        subheadingX,
+        subheadingY,
+        mockupX,
+        mockupY,
+        headingColor,
+        subheadingColor,
+        backgroundColor,
+      } = req.body;
 
       if (!heading || !subheading || !screenshotPath) {
         return res.status(400).json({ 
@@ -22,18 +40,28 @@ const imageController = {
       }
 
       console.log('regenerate-image: Generating new image');
-      const imageBuffer = await imageGenerationService.generateAppStoreImage(
+      const { imageBuffer } = await imageGenerationService.generateAppStoreImage({
         heading,
         subheading,
         screenshotPath,
         device,
-        {
-          headingFont: font.headingFont || 'Farro',
-          subheadingFont: font.subheadingFont || 'Headland One',
-          headingFontSize: font.headingFontSize || 120,
-          subheadingFontSize: font.subheadingFontSize || 69,
-        }
-      );
+        headingFontFamily: font.headingFont || 'Farro',
+        subheadingFontFamily: font.subheadingFont || 'Headland One',
+        headingFontSize: font.headingFontSize || 120,
+        subheadingFontSize: font.subheadingFontSize || 69,
+        templateId: templateId || font.templateId || null,
+        templateVersionId: templateVersionId || font.templateVersionId || null,
+        theme: theme || font.theme || 'accent',
+        headingX,
+        headingY,
+        subheadingX,
+        subheadingY,
+        mockupX,
+        mockupY,
+        headingColor,
+        subheadingColor,
+        backgroundColor,
+      });
 
   const timestamp = Date.now();
   const outputFilename = `regenerated-${timestamp}.png`;
@@ -90,23 +118,39 @@ const imageController = {
       const screenshotBuffer = await response.arrayBuffer();
 
       // Generate new image with updated configuration
-      const newImageBuffer = await imageGenerationService.generateAppStoreImage(
-        updatedConfig.heading,
-        updatedConfig.subheading,
-        Buffer.from(screenshotBuffer),
-        project.device,
-        updatedConfig.font
-      );
+      const fontConfig = updatedConfig.font || {};
+      const generationResult = await imageGenerationService.generateAppStoreImage({
+        heading: updatedConfig.heading,
+        subheading: updatedConfig.subheading,
+        screenshotBuffer: Buffer.from(screenshotBuffer),
+        device: project.device,
+        headingFontFamily: updatedConfig.headingFont || fontConfig.headingFont || 'Farro',
+        subheadingFontFamily: updatedConfig.subheadingFont || fontConfig.subheadingFont || 'Headland One',
+        headingFontSize: updatedConfig.headingFontSize || fontConfig.headingFontSize || 120,
+        subheadingFontSize: updatedConfig.subheadingFontSize || fontConfig.subheadingFontSize || 69,
+        templateId: updatedConfig.templateId || fontConfig.templateId || null,
+        templateVersionId: updatedConfig.templateVersionId || fontConfig.templateVersionId || null,
+        theme: updatedConfig.theme || fontConfig.theme || 'accent',
+        headingX: updatedConfig.headingX,
+        headingY: updatedConfig.headingY,
+        subheadingX: updatedConfig.subheadingX,
+        subheadingY: updatedConfig.subheadingY,
+        mockupX: updatedConfig.mockupX,
+        mockupY: updatedConfig.mockupY,
+        headingColor: updatedConfig.headingColor,
+        subheadingColor: updatedConfig.subheadingColor,
+        backgroundColor: updatedConfig.backgroundColor,
+      });
 
       console.log('update-image-config: Uploading new image to Supabase');
       // Upload new generated image to Supabase (with versioning)
       const timestamp = Date.now();
-      const newImageFilename = `generated_${originalImageUrl.split('/').pop().replace(/\.[^/.]+$/, "")}_v${timestamp}.png`;
+  const newImageFilename = `generated_${originalImageUrl.split('/').pop().replace(/\.[^/.]+$/, "")}_v${timestamp}.jpg`;
       
       const newGeneratedImageUrl = await uploadImageToSupabase(
-        newImageBuffer,
+        generationResult.imageBuffer,
         newImageFilename,
-        'image/png',
+        'image/jpeg',
         userId
       );
 
@@ -116,7 +160,13 @@ const imageController = {
       updatedImages[imageIndex] = {
         ...updatedImages[imageIndex],
         generatedImageUrl: newGeneratedImageUrl,
-        configuration: updatedConfig
+        templateVersionId: generationResult.templateVersionId || updatedConfig.templateVersionId || null,
+        accentColor: generationResult.accentColor,
+        configuration: {
+          ...updatedConfig,
+          templateId: generationResult.templateId || updatedConfig.templateId || null,
+          templateVersionId: generationResult.templateVersionId || updatedConfig.templateVersionId || null,
+        }
       };
 
       const updatedProject = await prisma.project.update({
@@ -279,23 +329,21 @@ const imageController = {
         const screenshotBuffer = Buffer.from(response.data, 'binary');
 
         console.log(`Generating App Store image ${i + 1} for URL ${sourceScreenshotUrl}`);
-        const imageBuffer = await imageGenerationService.generateAppStoreImage(
-          heading, 
-          subheading, 
-          screenshotBuffer, 
-          'iphone', // default device
-          {
-            headingFont: headingFontFamily,
-            subheadingFont: subheadingFontFamily,
-            headingFontSize,
-            subheadingFontSize,
-          }
-        );
+        const generationResult = await imageGenerationService.generateAppStoreImage({
+          heading,
+          subheading,
+          screenshotBuffer,
+          device: 'iphone',
+          headingFontFamily: headingFontFamily || 'Farro',
+          subheadingFontFamily: subheadingFontFamily || 'Headland One',
+          headingFontSize,
+          subheadingFontSize,
+        });
         
         // Replace the regenerated image in Supabase
         const { newImageUrl, oldImagePath } = await replaceImageInSupabase(
           generatedImageUrl, 
-          imageBuffer, 
+          generationResult.imageBuffer, 
           'image/jpeg'
         );
 
@@ -306,7 +354,10 @@ const imageController = {
 
         imageUrls.push({ 
           generatedImageUrl: newImageUrl,
-          sourceScreenshotUrl: sourceScreenshotUrl
+          sourceScreenshotUrl,
+          accentColor: generationResult.accentColor,
+          templateId: generationResult.templateId || null,
+          templateVersionId: generationResult.templateVersionId || null,
         });
         console.log(`Image ${i + 1} regenerated and saved to ${newImageUrl}`);
       }
