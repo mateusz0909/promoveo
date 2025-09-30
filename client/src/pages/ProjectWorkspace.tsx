@@ -8,8 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useBreadcrumb } from "@/context/BreadcrumbContext";
 import { useProject } from "@/context/ProjectContext";
 import { Spinner } from "@/components/ui/shadcn-io/spinner";
-import { useTemplates } from "@/hooks/useTemplates";
-import type { GeneratedImage, GeneratedImageConfiguration, GeneratedText, TemplateSummary } from '@/types/project';
+import type { GeneratedImage, GeneratedImageConfiguration, GeneratedText } from '@/types/project';
 
 // This component will wrap the multi-step form for creating/editing a project
 export function ProjectWorkspace() {
@@ -35,22 +34,6 @@ export function ProjectWorkspace() {
   const [createdProjectId, setCreatedProjectId] = useState<string | undefined>();
   const [projectCreatedAt, setProjectCreatedAt] = useState<string | undefined>();
   const [projectUpdatedAt, setProjectUpdatedAt] = useState<string | undefined>();
-  const { templates, isLoading: isLoadingTemplates } = useTemplates(device);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (templates.length === 0) {
-      return;
-    }
-
-    if (selectedTemplateId && templates.some((template: TemplateSummary) => template.id === selectedTemplateId)) {
-      return;
-    }
-
-    const preferredTemplate =
-      templates.find((template: TemplateSummary) => template.isDefault) ?? templates[0];
-    setSelectedTemplateId(preferredTemplate?.id ?? null);
-  }, [templates, selectedTemplateId]);
 
   useEffect(() => {
     if (id) {
@@ -92,10 +75,6 @@ export function ProjectWorkspace() {
           setLanguage(project.language || 'English');
           setProjectCreatedAt(project.createdAt);
           setProjectUpdatedAt(project.updatedAt);
-          const templateFromProject = project.generatedImages?.[0]?.configuration?.templateId;
-          if (templateFromProject) {
-            setSelectedTemplateId(templateFromProject);
-          }
 
           // Set current project in context for TopPanel
           setCurrentProject({
@@ -153,16 +132,6 @@ export function ProjectWorkspace() {
       return;
     }
 
-    const activeTemplate: TemplateSummary | undefined =
-      templates.find((template: TemplateSummary) => template.id === selectedTemplateId) ||
-      templates.find((template: TemplateSummary) => template.isDefault) ||
-      templates[0];
-
-    if (!activeTemplate) {
-      toast.error("Choose a template before generating.");
-      return;
-    }
-
     if (!session) {
       toast.error("Please log in to create a project.");
       return;
@@ -175,10 +144,6 @@ export function ProjectWorkspace() {
     data.append('appDescription', appDescription);
     data.append('language', language);
     data.append('device', device);
-    data.append('templateId', activeTemplate.id);
-    if (activeTemplate.templateVersionId) {
-      data.append('templateVersionId', activeTemplate.templateVersionId);
-    }
 
     const descriptions = files.map((file, i) => ({
       heading: imageDescriptions[i] || file.name,
@@ -272,10 +237,6 @@ export function ProjectWorkspace() {
           onGenerate={handleGenerateAndSave}
           onBack={handleBack}
           isLoading={isLoading}
-          templates={templates}
-          isLoadingTemplates={isLoadingTemplates}
-          selectedTemplateId={selectedTemplateId}
-          onSelectTemplate={setSelectedTemplateId}
         />
       )}
       {step === 3 && (
@@ -293,10 +254,6 @@ export function ProjectWorkspace() {
           language={language}
           createdAt={projectCreatedAt}
           updatedAt={projectUpdatedAt}
-          templates={templates}
-          selectedTemplateId={selectedTemplateId}
-          onSelectTemplate={setSelectedTemplateId}
-          isLoadingTemplates={isLoadingTemplates}
         />
       )}
     </>

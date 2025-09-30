@@ -295,7 +295,7 @@ export function AppStoreContentTab({
   return (
     <TooltipProvider>
       <div className="space-y-6">
-        <Card className="bg-card/60 border border-border/50 shadow-sm">
+        <Card className="bg-card/100 border border-border/50 shadow-sm">
           <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <div className="flex items-center gap-2 text-muted-foreground uppercase text-xs tracking-widest">

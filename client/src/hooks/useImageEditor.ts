@@ -1,24 +1,9 @@
-import { useRef } from 'react';
+import { useCallback, useRef } from 'react';
+import type { ImageThemeDefinition } from '@/constants/imageThemes';
+import { lightenColor } from '@/utils/color';
 
 type DraggableElement = "mockup" | "heading" | "subheading" | null;
-
-function lightenColor(hex: string | null | undefined, percent: number) {
-  // Handle null, undefined, or empty string
-  if (!hex) {
-    hex = '#000000'; // Default to black
-  }
-  
-  hex = hex.replace(/^#/, '');
-  const r = parseInt(hex.substring(0, 2), 16);
-  const g = parseInt(hex.substring(2, 4), 16);
-  const b = parseInt(hex.substring(4, 6), 16);
-
-  const newR = Math.min(255, r + (255 - r) * (percent / 100));
-  const newG = Math.min(255, g + (255 - g) * (percent / 100));
-  const newB = Math.min(255, b + (255 - b) * (percent / 100));
-
-  return `#${Math.round(newR).toString(16).padStart(2, '0')}${Math.round(newG).toString(16).padStart(2, '0')}${Math.round(newB).toString(16).padStart(2, '0')}`;
-}
+type HandleType = "rotate" | "resize-nw" | "resize-ne" | "resize-sw" | "resize-se" | null;
 
 function wrapText(context: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number): { lines: { text: string, y: number }[], bounds: DOMRect } {
   const words = text.split(' ');
@@ -135,11 +120,12 @@ interface DrawImageOptions {
   subheadingFontFamily?: string;
   headingFontSize?: number;
   subheadingFontSize?: number;
-  accentColor?: string;
   headingColor?: string;
   subheadingColor?: string;
   mockupX?: number;
   mockupY?: number;
+  mockupScale?: number;
+  mockupRotation?: number;
   headingX?: number;
   headingY?: number;
   subheadingX?: number;
@@ -147,7 +133,10 @@ interface DrawImageOptions {
   isHovering?: boolean;
   isDragging?: boolean;
   dragTarget?: DraggableElement;
+  activeHandle?: HandleType;
   device?: string;
+  accentColor?: string | null;
+  theme: ImageThemeDefinition;
 }
 
 export const useImageEditor = (canvasRef: React.RefObject<HTMLCanvasElement | null>) => {
@@ -155,7 +144,7 @@ export const useImageEditor = (canvasRef: React.RefObject<HTMLCanvasElement | nu
   const lastScreenshotUrl = useRef<string | null>(null);
   const lastDevice = useRef<string | null>(null);
 
-  const drawImage = async (options: DrawImageOptions) => {
+  const drawImage = useCallback(async (options: DrawImageOptions) => {
     const {
       heading,
       subheading,
@@ -164,11 +153,12 @@ export const useImageEditor = (canvasRef: React.RefObject<HTMLCanvasElement | nu
       subheadingFontFamily = 'Headland One',
       headingFontSize = 120,
       subheadingFontSize = 80,
-      accentColor = '#000000',
-      headingColor = '#FFFFFF',
-      subheadingColor = '#FFFFFF',
+      headingColor: headingColorOverride,
+      subheadingColor: subheadingColorOverride,
       mockupX = 0,
       mockupY = 0,
+      mockupScale = 1,
+      mockupRotation = 0,
       headingX = 0,
       headingY = 0,
       subheadingX = 0,
@@ -176,11 +166,22 @@ export const useImageEditor = (canvasRef: React.RefObject<HTMLCanvasElement | nu
       isHovering = false,
       isDragging = false,
       dragTarget = null,
+      activeHandle = null,
       device = 'iPhone',
+      accentColor: accentColorInput,
+      theme,
     } = options;
-    
+
+    const resolvedHeadingColor = headingColorOverride ?? theme.headingColor;
+    const resolvedSubheadingColor = subheadingColorOverride ?? theme.subheadingColor;
+    const rawAccentColor = accentColorInput ?? (theme.background.type === 'accent' ? theme.background.fallback : '#4F46E5');
+
     // Ensure accentColor is never null or undefined
-    const safeAccentColor = accentColor || '#000000';
+    const safeAccentColor = rawAccentColor || '#000000';
+    const accentLightenPercent = theme.background.type === 'accent' ? (theme.background.lightenBasePercent ?? 45) : 0;
+    const pastelAccentColor = theme.background.type === 'accent'
+      ? lightenColor(safeAccentColor, accentLightenPercent)
+      : safeAccentColor;
 
     const canvas = canvasRef.current;
     if (!canvas) return null;
@@ -201,17 +202,88 @@ export const useImageEditor = (canvasRef: React.RefObject<HTMLCanvasElement | nu
     const width = canvas.width;
     const height = canvas.height;
 
-    // Background
-    if (safeAccentColor === '#FFFFFF' || safeAccentColor === '#000000') {
-      context.fillStyle = safeAccentColor;
-    } else {
-      const backgroundColor = lightenColor(safeAccentColor, 80);
-      const gradient = context.createLinearGradient(0, 0, 0, height);
-      gradient.addColorStop(0, backgroundColor);
-      gradient.addColorStop(1, '#f0f0f0');
-      context.fillStyle = gradient;
+    const applyBackground = () => {
+      switch (theme.background.type) {
+        case 'accent': {
+          const base = pastelAccentColor || theme.background.fallback || '#4F46E5';
+          // Match backend: gradient from lightened accent to almost white
+          const gradient = context.createLinearGradient(0, 0, 0, height);
+          gradient.addColorStop(0, base); // top: lightened accent color
+          gradient.addColorStop(1, '#f0f0f0'); // bottom: almost white (matches backend)
+          context.fillStyle = gradient;
+          break;
+        }
+        case 'solid': {
+          context.fillStyle = theme.background.color;
+          break;
+        }
+        case 'linear-gradient': {
+          const { colors, angle = 0 } = theme.background;
+          const radians = (angle % 360) * (Math.PI / 180);
+          const halfWidth = width / 2;
+          const halfHeight = height / 2;
+          const x = Math.cos(radians);
+          const y = Math.sin(radians);
+          const x0 = halfWidth - x * halfWidth;
+          const y0 = halfHeight - y * halfHeight;
+          const x1 = halfWidth + x * halfWidth;
+          const y1 = halfHeight + y * halfHeight;
+          const gradient = context.createLinearGradient(x0, y0, x1, y1);
+          const stopCount = colors.length;
+          colors.forEach((color, index) => {
+            const position = stopCount === 1 ? 1 : index / (stopCount - 1);
+            gradient.addColorStop(position, color);
+          });
+          context.fillStyle = gradient;
+          break;
+        }
+        case 'radial-gradient': {
+          const radius = Math.min(width, height) * (theme.background.radiusRatio ?? 0.65);
+          const centerX = width / 2;
+          const centerY = height * 0.35;
+          const radial = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+          radial.addColorStop(0, theme.background.innerColor);
+          radial.addColorStop(1, theme.background.outerColor);
+          context.fillStyle = radial;
+          break;
+        }
+      }
+      context.fillRect(0, 0, width, height);
+    };
+
+    applyBackground();
+
+    if (theme.overlay?.type === 'spotlight') {
+      const overlay = theme.overlay;
+      const radius = Math.min(width, height) * (overlay.radiusRatio ?? 0.6);
+      const centerX = width / 2;
+      const centerY = height * (overlay.yOffsetRatio ?? 0.35);
+      const spotlight = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+      spotlight.addColorStop(0, overlay.color);
+      spotlight.addColorStop(1, 'rgba(255,255,255,0)');
+      context.save();
+      context.globalAlpha = overlay.opacity ?? 0.3;
+      context.fillStyle = spotlight;
+      context.fillRect(0, 0, width, height);
+      context.restore();
     }
-    context.fillRect(0, 0, width, height);
+
+    if (theme.ribbon) {
+      const { colors, heightRatio = 0.2, opacity = 0.25 } = theme.ribbon;
+      const ribbonHeight = height * heightRatio;
+      const startY = height * 0.55;
+      const gradient = context.createLinearGradient(0, startY, width, startY);
+      const stopCount = colors.length;
+      colors.forEach((color, index) => {
+        const position = stopCount === 1 ? 1 : index / (stopCount - 1);
+        gradient.addColorStop(position, color);
+      });
+      context.save();
+      context.globalAlpha = opacity;
+      context.fillStyle = gradient;
+      context.fillRect(0, startY, width, ribbonHeight);
+      context.restore();
+    }
 
     // --- Text and Mockup Drawing ---
     let headingBounds: DOMRect | null = null;
@@ -220,7 +292,7 @@ export const useImageEditor = (canvasRef: React.RefObject<HTMLCanvasElement | nu
 
     // Heading
     context.font = `bold ${headingFontSize}px "${headingFontFamily}"`;
-    context.fillStyle = headingColor;
+    context.fillStyle = resolvedHeadingColor;
     context.textAlign = 'center';
     const headingInitialY = 200;
     const headingDrawX = (width / 2) + headingX;
@@ -231,7 +303,7 @@ export const useImageEditor = (canvasRef: React.RefObject<HTMLCanvasElement | nu
 
     // Subheading
     context.font = `${subheadingFontSize}px "${subheadingFontFamily}"`;
-    context.fillStyle = subheadingColor;
+  context.fillStyle = resolvedSubheadingColor;
     context.textAlign = 'center';
     // Decouple subheading Y position from heading
     const subheadingInitialY = 400;
@@ -269,26 +341,131 @@ export const useImageEditor = (canvasRef: React.RefObject<HTMLCanvasElement | nu
     const mockupDrawX = mockupInitialX + mockupX;
     const mockupDrawY = mockupInitialY + mockupY;
 
+    // Apply scale and rotation transformations
+    context.save();
+    
+    // Calculate the center point for rotation and scaling
+    const mockupCenterX = mockupDrawX + mockupDrawWidth / 2;
+    const mockupCenterY = mockupDrawY + mockupDrawHeight / 2;
+    
+    // Translate to center, rotate, scale, then translate back
+    context.translate(mockupCenterX, mockupCenterY);
+    context.rotate((mockupRotation * Math.PI) / 180);
+    context.scale(mockupScale, mockupScale);
+    context.translate(-mockupCenterX, -mockupCenterY);
+    
     context.drawImage(mockupCanvas, mockupDrawX, mockupDrawY, mockupDrawWidth, mockupDrawHeight);
-    mockupBounds = new DOMRect(mockupDrawX, mockupDrawY, mockupDrawWidth, mockupDrawHeight);
+    
+    context.restore();
+    
+    // For bounds calculation, we need to account for scale
+    const scaledWidth = mockupDrawWidth * mockupScale;
+    const scaledHeight = mockupDrawHeight * mockupScale;
+    const scaledX = mockupCenterX - scaledWidth / 2;
+    const scaledY = mockupCenterY - scaledHeight / 2;
+    mockupBounds = new DOMRect(scaledX, scaledY, scaledWidth, scaledHeight);
 
     // --- Borders for Hover/Drag ---
     if (isHovering || isDragging) {
       context.strokeStyle = isDragging ? '#3b82f6' : '#9ca3af';
-      context.lineWidth = 15;
+      context.lineWidth = 5;
       let boundsToDraw: DOMRect | null = null;
       switch (dragTarget) {
-        case 'mockup': boundsToDraw = mockupBounds; break;
         case 'heading': boundsToDraw = headingBounds; break;
         case 'subheading': boundsToDraw = subheadingBounds; break;
+        // Mockup bounds are drawn in rotated space below, so skip here
       }
       if (boundsToDraw) {
         context.strokeRect(boundsToDraw.x, boundsToDraw.y, boundsToDraw.width, boundsToDraw.height);
       }
     }
+
+    // --- Interactive Handles for Mockup ---
+    if ((isHovering || isDragging) && dragTarget === 'mockup' && mockupBounds) {
+      const handleSize = 24;
+      const rotateHandleOffset = 40;
+      
+      // Save context for handles
+      context.save();
+      
+      // Rotate context for handles to match mockup rotation
+      context.translate(mockupCenterX, mockupCenterY);
+      context.rotate((mockupRotation * Math.PI) / 180);
+      
+      // Draw bounding box in rotated space
+      const halfWidth = scaledWidth / 2;
+      const halfHeight = scaledHeight / 2;
+      
+      context.strokeStyle = isDragging ? '#3b82f6' : '#9ca3af';
+      context.lineWidth = 5;
+      context.strokeRect(-halfWidth, -halfHeight, scaledWidth, scaledHeight);
+      
+      // Helper to draw a handle
+      const drawHandle = (x: number, y: number, isActive: boolean) => {
+        context.fillStyle = isActive ? '#3b82f6' : '#ffffff';
+        context.strokeStyle = '#3b82f6';
+        context.lineWidth = 5;
+        context.beginPath();
+        context.arc(x, y, handleSize / 2, 0, Math.PI * 2);
+        context.fill();
+        context.stroke();
+      };
+      
+      // Corner resize handles
+      const corners = [
+        { x: -halfWidth, y: -halfHeight, handle: 'resize-nw' },
+        { x: halfWidth, y: -halfHeight, handle: 'resize-ne' },
+        { x: -halfWidth, y: halfHeight, handle: 'resize-sw' },
+        { x: halfWidth, y: halfHeight, handle: 'resize-se' },
+      ];
+      
+      corners.forEach(corner => {
+        const isActive = activeHandle === corner.handle;
+        drawHandle(corner.x, corner.y, isActive);
+      });
+      
+      // Rotation handle (above top edge)
+      const rotateY = -halfHeight - rotateHandleOffset;
+      const isRotateActive = activeHandle === 'rotate';
+      
+      // Draw line from top center to rotate handle
+      context.strokeStyle = '#3b82f6';
+      context.lineWidth = 2;
+      context.beginPath();
+      context.moveTo(0, -halfHeight);
+      context.lineTo(0, rotateY);
+      context.stroke();
+      
+      // Draw rotation handle as a circle with rotation icon
+      context.fillStyle = isRotateActive ? '#3b82f6' : '#ffffff';
+      context.strokeStyle = '#3b82f6';
+      context.lineWidth = 2;
+      context.beginPath();
+      context.arc(0, rotateY, handleSize / 2, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+      
+      // Draw curved arrow inside rotation handle
+      context.strokeStyle = isRotateActive ? '#ffffff' : '#3b82f6';
+      context.lineWidth = 2;
+      context.beginPath();
+      context.arc(0, rotateY, handleSize / 4, -Math.PI * 0.3, Math.PI * 1.5, false);
+      context.stroke();
+      // Arrow head
+      const arrowSize = 4;
+      context.beginPath();
+      context.moveTo(-arrowSize / 2, rotateY - handleSize / 4);
+      context.lineTo(arrowSize / 2, rotateY - handleSize / 4);
+      context.lineTo(0, rotateY - handleSize / 4 - arrowSize);
+      context.closePath();
+      context.fillStyle = isRotateActive ? '#ffffff' : '#3b82f6';
+      context.fill();
+      
+      context.restore();
+    }
     
     return { mockup: mockupBounds, heading: headingBounds, subheading: subheadingBounds };
-  };
+  }, [canvasRef]);
 
   return { drawImage };
 };

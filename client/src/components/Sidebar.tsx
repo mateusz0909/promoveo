@@ -193,7 +193,7 @@ export function AppSidebar({ }: AppSidebarProps) {
     };
 
     fetchRecentProjects();
-  }, [session]);
+  }, [session, location]);
 
   // Handle project selection
   const handleProjectSelect = (projectId: string) => {
@@ -358,9 +358,9 @@ export function AppSidebar({ }: AppSidebarProps) {
 
       <SidebarFooter className="p-4 border-t">
         {/* Settings Button */}
-        <Button variant="ghost" size="sm" asChild className="justify-start mb-2">
+        <Button variant="ghost" size="md" asChild className="justify-start mb-2">
           <Link to="/settings">
-            <Cog6ToothIcon className="h-4 w-4 mr-2" />
+            <Cog6ToothIcon className="h-8 w-8 mr-2" />
             Settings
           </Link>
         </Button>

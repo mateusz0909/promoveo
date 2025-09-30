@@ -280,6 +280,8 @@ export const Step3 = ({ appName, appDescription, generatedText, generatedImages,
         onSave={handleImageSave}
         projectId={projectId}
         device={device}
+        appName={appName}
+        appDescription={appDescription}
       />
     </div>
   );

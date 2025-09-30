@@ -4,13 +4,11 @@ import { useProject } from '@/context/ProjectContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { 
   PhotoIcon, 
-  CloudArrowUpIcon, 
   CheckCircleIcon,
   ExclamationCircleIcon,
   ArrowDownTrayIcon,
@@ -168,11 +166,13 @@ export function LandingPageTab({ className }: LandingPageTabProps) {
   });
   const hasLoadedInitialConfig = useRef(false);
   const [isDownloadingExisting, setIsDownloadingExisting] = useState(false);
+  const [showSuccessView, setShowSuccessView] = useState(false);
 
   useEffect(() => {
     hasLoadedInitialConfig.current = false;
     setSavedLogoInfo(null);
     setLandingPageMeta({ downloadUrl: null, updatedAt: null });
+    setShowSuccessView(false);
   }, [currentProject?.id]);
 
   // Fetch project images
@@ -234,6 +234,11 @@ export function LandingPageTab({ className }: LandingPageTabProps) {
           downloadUrl: data.downloadUrl || null,
           updatedAt: data.updatedAt || null,
         });
+
+        // If there's a download URL, show the success view
+        if (data.downloadUrl) {
+          setShowSuccessView(true);
+        }
 
         if (data.config) {
           setSavedLogoInfo(data.config.logo || null);
@@ -417,6 +422,9 @@ export function LandingPageTab({ className }: LandingPageTabProps) {
         updatedAt: data.updatedAt || null,
       });
 
+      // Transition to success view
+      setShowSuccessView(true);
+
       if (data.downloadUrl) {
         try {
           await triggerZipDownload(data.downloadUrl);
@@ -480,6 +488,18 @@ export function LandingPageTab({ className }: LandingPageTabProps) {
     }
   };
 
+  const handleEditSettings = () => {
+    setShowSuccessView(false);
+  };
+
+  const handleRegenerate = async () => {
+    setShowSuccessView(false);
+    // Small delay to ensure UI updates before regenerating
+    setTimeout(() => {
+      handleGenerateLandingPage();
+    }, 100);
+  };
+
   const formatTimestamp = (iso?: string | null) => {
     if (!iso) return '';
     const date = new Date(iso);
@@ -489,110 +509,133 @@ export function LandingPageTab({ className }: LandingPageTabProps) {
     return date.toLocaleString();
   };
 
+  const hasExistingBundle = Boolean(landingPageMeta.downloadUrl);
+
   if (!currentProject) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex h-64 items-center justify-center">
         <div className="text-center">
-          <ExclamationCircleIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <ExclamationCircleIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
           <p className="text-muted-foreground">No project selected</p>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className={`space-y-6 ${className || ''}`}>
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <GlobeAltIcon className="h-6 w-6 text-primary" />
-        <div>
-          <h2 className="text-2xl font-bold">Landing Page Generator</h2>
-          <p className="text-muted-foreground">
-            Customize your landing page with app store link, logo, and screenshot
-          </p>
+  // Show loading state while checking for existing landing page
+  if (isLoadingConfig) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="text-center">
+          <div className="mx-auto mb-4 h-12 w-12 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+          <p className="text-muted-foreground">Loading landing page configuration...</p>
         </div>
       </div>
+    );
+  }
 
-      <Separator />
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ArrowDownTrayIcon className="h-5 w-5" />
-            Saved landing page package
-          </CardTitle>
-          <CardDescription>
-            Your most recent landing page ZIP is stored for quick access. Regenerate after making updates to keep it fresh.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoadingConfig ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <div className="h-4 w-4 border-2 border-muted-foreground/30 border-t-primary rounded-full animate-spin" />
-              Loading saved configuration...
-            </div>
-          ) : landingPageMeta.downloadUrl ? (
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div className="space-y-1">
-                <p className="text-sm font-medium">Latest package ready to download</p>
-                {landingPageMeta.updatedAt && (
-                  <p className="text-sm text-muted-foreground">
-                    Generated {formatTimestamp(landingPageMeta.updatedAt)}
-                  </p>
-                )}
-                {savedLogoInfo && (
-                  <p className="text-xs text-muted-foreground">
-                    Saved logo: {savedLogoInfo.originalName || 'Custom logo'}{' '}
-                    {savedLogoInfo.publicUrl && (
-                      <a
-                        href={savedLogoInfo.publicUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:underline"
-                      >
-                        Preview
-                      </a>
-                    )}
-                  </p>
-                )}
-              </div>
-              <Button
-                variant="secondary"
-                onClick={handleDownloadExisting}
-                className="w-full md:w-auto"
-                disabled={isDownloadingExisting}
-              >
-                {isDownloadingExisting ? (
-                  <>
-                    <div className="h-4 w-4 border-2 border-muted-foreground/30 border-t-primary rounded-full animate-spin mr-2" />
-                    Downloading...
-                  </>
-                ) : (
-                  <>
-                    <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
-                    Download latest ZIP
-                  </>
-                )}
-              </Button>
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              No landing page package yet. Complete the form and select Generate & Download when you’re ready.
+  // ACT II: Success View - "Package Ready" Dashboard
+  if (showSuccessView && hasExistingBundle) {
+    return (
+      <div className={`flex h-full flex-col items-center justify-center gap-8 px-6 ${className ?? ''}`}>
+        <div className="flex flex-col items-center gap-6 text-center">
+          <div className="rounded-full bg-green-100 p-6 dark:bg-green-900/30">
+            <CheckCircleIcon className="h-20 w-20 text-green-600 dark:text-green-500" />
+          </div>
+          
+          <div className="space-y-2">
+            <h2 className="text-3xl font-bold tracking-tight">
+              Your Landing Page Package is Ready!
+            </h2>
+            <p className="text-lg text-muted-foreground">
+              Generated on: {formatTimestamp(landingPageMeta.updatedAt)}
             </p>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+        </div>
 
-      {/* App Store Configuration */}
+        <div className="flex w-full max-w-md flex-col gap-4">
+          <Button
+            onClick={handleDownloadExisting}
+            disabled={isDownloadingExisting}
+            size="lg"
+            className="h-14 text-lg font-semibold bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700"
+          >
+            {isDownloadingExisting ? (
+              <>
+                <div className="mr-2 h-5 w-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                Downloading...
+              </>
+            ) : (
+              <>
+                <ArrowDownTrayIcon className="mr-2 h-5 w-5" />
+                Download Landing Page (.ZIP)
+              </>
+            )}
+          </Button>
+
+          <div className="flex items-center justify-center gap-4">
+            <Button
+              variant="secondary"
+              onClick={handleRegenerate}
+              disabled={isGeneratingLandingPage}
+              className="flex items-center gap-2"
+            >
+              {isGeneratingLandingPage ? (
+                <>
+                  <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/30 border-t-primary animate-spin" />
+                  Regenerating...
+                </>
+              ) : (
+                <>
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Regenerate
+                </>
+              )}
+            </Button>
+            
+            <Button
+              variant="ghost"
+              onClick={handleEditSettings}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              ← Edit Settings
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ACT I: Configuration Wizard
+  return (
+    <div className={`flex h-full flex-col gap-6 ${className ?? ''}`}>
+      {/* Header */}
+      <div className="space-y-2">
+        <h2 className="text-2xl font-bold tracking-tight">Landing Page Generator</h2>
+        <p className="text-muted-foreground">
+          Follow the steps below to build your project's landing page.
+        </p>
+      </div>
+
+      {/* Step 1: App Store Configuration */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <GlobeAltIcon className="h-5 w-5" />
-            App Store Configuration
-          </CardTitle>
-          <CardDescription>
-            Provide your App Store ID to generate the download link
-          </CardDescription>
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground font-semibold">
+              1
+            </div>
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <GlobeAltIcon className="h-5 w-5" />
+                App Store Configuration
+              </CardTitle>
+              <CardDescription>
+                Provide your App Store ID to generate the download link
+              </CardDescription>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -609,68 +652,57 @@ export function LandingPageTab({ className }: LandingPageTabProps) {
               Find your App Store ID in your app's URL on the App Store
             </p>
             {formData.appStoreId && (
-              <div className="mt-2">
-                <p className="text-sm font-medium">Generated URL:</p>
-                <p className="text-sm text-blue-600 break-all">
-                  {generateAppStoreUrl(formData.appStoreId)}
+              <div className="mt-2 space-y-1 rounded-lg border border-dashed border-muted-foreground/20 bg-muted/20 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Generated URL
                 </p>
+                <a
+                  href={generateAppStoreUrl(formData.appStoreId)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-400"
+                >
+                  {generateAppStoreUrl(formData.appStoreId)}
+                </a>
               </div>
             )}
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Logo Upload */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CloudArrowUpIcon className="h-5 w-5" />
-            App Logo
-          </CardTitle>
-          <CardDescription>
-            Upload your app logo to display in the landing page header
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex items-center gap-4">
-              <div className="flex-1">
-                <Label htmlFor="logo-upload" className="sr-only">
-                  Upload logo
-                </Label>
-                <Input
-                  id="logo-upload"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleLogoUpload}
-                  className="max-w-md"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Supports JPEG, PNG, SVG, WebP (max 2MB)
-                </p>
-                {!formData.logoFile && savedLogoInfo && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
-                    <CheckCircleIcon className="h-4 w-4 text-green-600" />
-                    <span>Using saved logo{savedLogoInfo.originalName ? ` (${savedLogoInfo.originalName})` : ''}</span>
-                    {savedLogoInfo.publicUrl && (
-                      <a
-                        href={savedLogoInfo.publicUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:underline"
-                      >
-                        Preview
-                      </a>
-                    )}
-                  </div>
-                )}
-              </div>
-              {formData.logoFile && (
-                <div className="flex items-center gap-2">
+          <div className="pt-4 border-t">
+            <div className="space-y-2">
+              <Label htmlFor="logo-upload">App Logo - Optional but recommended</Label>
+              <Input
+                id="logo-upload"
+                type="file"
+                accept="image/*"
+                onChange={handleLogoUpload}
+                className="max-w-md"
+              />
+              <p className="text-xs text-muted-foreground">
+                Supports JPEG, PNG, SVG, WebP (max 2MB)
+              </p>
+              {!formData.logoFile && savedLogoInfo && (
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
                   <CheckCircleIcon className="h-4 w-4 text-green-600" />
-                  <span className="text-sm text-green-600">
-                    {formData.logoFile.name}
+                  <span className="text-muted-foreground">
+                    Using saved logo{savedLogoInfo.originalName ? ` (${savedLogoInfo.originalName})` : ''}
                   </span>
+                  {savedLogoInfo.publicUrl && (
+                    <a
+                      href={savedLogoInfo.publicUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline dark:text-blue-400"
+                    >
+                      Preview
+                    </a>
+                  )}
+                </div>
+              )}
+              {formData.logoFile && (
+                <div className="flex items-center gap-2 rounded-md border border-green-500/40 bg-green-500/10 px-3 py-2 text-sm font-medium text-green-600 dark:text-green-500">
+                  <CheckCircleIcon className="h-4 w-4" />
+                  {formData.logoFile.name}
                 </div>
               )}
             </div>
@@ -678,46 +710,56 @@ export function LandingPageTab({ className }: LandingPageTabProps) {
         </CardContent>
       </Card>
 
-      {/* Screenshot Selection */}
+      {/* Step 2: Screenshot Selection */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <PhotoIcon className="h-5 w-5" />
-            Screenshot Mockup Selection
-          </CardTitle>
-          <CardDescription>
-            Choose a marketing image from your project to feature on the landing page
-          </CardDescription>
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground font-semibold">
+              2
+            </div>
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <PhotoIcon className="h-5 w-5" />
+                Screenshot Selection
+              </CardTitle>
+              <CardDescription>
+                Choose a marketing image from your project to feature on the landing page
+              </CardDescription>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoadingImages ? (
-            <div className="flex items-center justify-center h-32">
+            <div className="flex items-center justify-center py-12">
               <div className="text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                <div className="mx-auto mb-2 h-10 w-10 rounded-full border-2 border-primary border-t-transparent animate-spin" />
                 <p className="text-sm text-muted-foreground">Loading images...</p>
               </div>
             </div>
           ) : projectImages.length === 0 ? (
-            <div className="text-center py-8">
-              <PhotoIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">No marketing images found</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Generate some marketing images in the Images tab first
-              </p>
+            <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-muted-foreground/20 bg-muted/10 p-12 text-center">
+              <PhotoIcon className="h-12 w-12 text-muted-foreground" />
+              <div>
+                <p className="font-medium text-muted-foreground">No marketing images found</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Generate marketing images in the Images tab first
+                </p>
+              </div>
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {projectImages.map((image) => (
-                <div
+                <button
+                  type="button"
                   key={image.id}
-                  className={`relative cursor-pointer rounded-lg border-2 transition-all ${
+                  onClick={() => handleImageSelection(image.id)}
+                  className={`group relative overflow-hidden rounded-lg border-2 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
                     formData.selectedImageId === image.id
-                      ? 'border-primary shadow-md'
+                      ? 'border-primary shadow-lg ring-2 ring-primary ring-offset-2'
                       : 'border-border hover:border-muted-foreground'
                   }`}
-                  onClick={() => handleImageSelection(image.id)}
                 >
-                  <div className="h-100  flex items-center justify-center overflow-hidden">
+                  <div className="relative flex aspect-[9/19] items-center justify-center bg-muted/20">
                     {mockupPreviews[image.id] ? (
                       <img
                         src={mockupPreviews[image.id]}
@@ -732,69 +774,83 @@ export function LandingPageTab({ className }: LandingPageTabProps) {
                       />
                     ) : (
                       <div className="flex flex-col items-center justify-center gap-2 text-xs text-muted-foreground">
-                        <div className="h-6 w-6 border-2 border-muted-foreground/40 border-t-transparent rounded-full animate-spin" />
-                        <span>Preparing mockup...</span>
+                        <div className="h-6 w-6 rounded-full border-2 border-muted-foreground/40 border-t-transparent animate-spin" />
+                        <span>Loading...</span>
                       </div>
                     )}
                   </div>
                   {formData.selectedImageId === image.id && (
                     <div className="absolute top-2 right-2">
-                      <Badge variant="default" className="text-xs">
-                        <CheckCircleIcon className="h-3 w-3 mr-1" />
+                      <Badge className="flex items-center gap-1 text-xs bg-primary">
+                        <CheckCircleIcon className="h-3 w-3" />
                         Selected
                       </Badge>
                     </div>
                   )}
-                </div>
+                </button>
               ))}
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Generate Button */}
-      <div className="flex items-center justify-between pt-4">
-        <div className="text-sm text-muted-foreground">
-          {isGeneratingMockups ? (
-            <span className="flex items-center gap-2">
-              <div className="h-4 w-4 border-2 border-muted-foreground/30 border-t-primary rounded-full animate-spin" />
-              Preparing previews...
-            </span>
-          ) : isLoadingConfig ? (
-            <span className="flex items-center gap-2">
-              <div className="h-4 w-4 border-2 border-muted-foreground/30 border-t-primary rounded-full animate-spin" />
-              Loading saved configuration...
-            </span>
-          ) : isFormValid() ? (
-            <span className="flex items-center gap-2 text-green-600">
-              <CheckCircleIcon className="h-4 w-4" />
-              Ready to generate landing page
-            </span>
-          ) : (
-            <span className="flex items-center gap-2">
-              <ExclamationCircleIcon className="h-4 w-4" />
-              Please complete all required fields
-            </span>
+      {/* Step 3: Generate */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground font-semibold">
+              3
+            </div>
+            <div>
+              <CardTitle>Generate Your Package</CardTitle>
+              <CardDescription>
+                Once all required fields are complete, you're ready to build your site
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {!isFormValid() && (
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-600 dark:text-amber-500">
+              <div className="flex items-center gap-2">
+                <ExclamationCircleIcon className="h-5 w-5" />
+                <span className="font-medium">Please complete all required fields above</span>
+              </div>
+            </div>
           )}
-        </div>
-        <Button
-          onClick={handleGenerateLandingPage}
-          disabled={!isFormValid() || isGeneratingLandingPage || isGeneratingMockups}
-          size="lg"
-        >
-          {isGeneratingLandingPage ? (
-            <>
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
-              Generating...
-            </>
-          ) : (
-            <>
-              <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
-              Generate & Download
-            </>
+          
+          {isFormValid() && (
+            <div className="rounded-lg border border-green-500/40 bg-green-500/10 px-4 py-3 text-sm text-green-600 dark:text-green-500">
+              <div className="flex items-center gap-2">
+                <CheckCircleIcon className="h-5 w-5" />
+                <span className="font-medium">Ready to generate landing page</span>
+              </div>
+            </div>
           )}
-        </Button>
-      </div>
+        </CardContent>
+        <CardFooter className="flex justify-center">
+          <Button
+            onClick={handleGenerateLandingPage}
+            disabled={!isFormValid() || isGeneratingLandingPage || isGeneratingMockups}
+            size="lg"
+            className="h-14 w-full max-w-md text-lg font-semibold"
+          >
+            {isGeneratingLandingPage ? (
+              <>
+                <div className="mr-2 h-5 w-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                Generating Landing Page...
+              </>
+            ) : (
+              <>
+                <svg className="mr-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                </svg>
+                Generate Landing Page
+              </>
+            )}
+          </Button>
+        </CardFooter>
+      </Card>
     </div>
   );
 }

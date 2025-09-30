@@ -17,6 +17,9 @@ router.get('/download/:projectId', requireAuth, imageController.downloadImages);
 // Generate image description using AI
 router.post('/generate-description', upload.single('image'), imageController.generateImageDescription);
 
+// Generate heading and subheading for an image using AI
+router.post('/generate-heading-subheading', upload.single('image'), imageController.generateImageHeadingSubheading);
+
 // Legacy ZIP download endpoint
 router.post('/download-zip', imageController.downloadImagesZip);
 

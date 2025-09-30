@@ -195,7 +195,7 @@ export default function GalleryUpload({
           </div>
 
           <div className="space-y-2">
-            <h3 className="text-lg font-semibold">Upload images to gallery</h3>
+            <h3 className="text-lg font-semibold">Upload images</h3>
             <p className="text-sm text-muted-foreground">Drag and drop images here or click to browse</p>
             <p className="text-xs text-muted-foreground">
               PNG, JPG, GIF up to {formatBytes(maxSize)} each (max {maxFiles} files)

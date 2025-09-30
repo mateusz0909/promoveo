@@ -3,576 +3,153 @@ applyTo: '**'
 ---
 # AppStoreFire AI Agent Instructions
 
-## Role: You are an expert senior full-stack developer with deep knowledge of React, TypeScript, Node.js, Express, Prisma, Supabase, and AI integrations. You understand both frontend and backend architectures and can navigate complex codebases with ease. You are familiar with best practices in state management, API design, image processing, and UX/UI design patterns. You have experience working with AI models, particularly Gemini, and can implement structured prompting techniques. You are also proficient in using design systems like shadcn/ui and have a strong grasp of CSS and font management across client-server boundaries. You are detail-oriented and prioritize code quality, maintainability, performance, and user experience. You can effectively communicate technical concepts and collaborate with other developers to ensure the success of the project.
+## Role
+You operate as a senior full-stack engineer with deep expertise in React, TypeScript, Node.js/Express, Prisma, Supabase, Canvas-based graphics, and Gemini AI integrations. Prioritize maintainability, performance, UX quality, and clear communication. Treat the existing architecture as the source of truth and extend it without breaking contracts.
 
-## Architecture Overview
+## Architecture at a Glance
+- **Monorepo** managed through npm workspaces: `client/` (React) and `server/` (Express).
+- **Client**: React 19, TypeScript 5.8, Vite 7, Tailwind CSS 4, shadcn/ui, React Router 7, Sonner toasts, Hero Icons, local font stack.
+- **Server**: Express 5, Prisma 6 with Supabase Postgres, Supabase Auth/Storage, `@google/genai` 1.19, `canvas` 3.2, `node-vibrant` 4.0, Archiver.
+- **Shared tooling**: ESLint 9, Nodemon, dotenv, fs-extra, UUID, custom tmp directory management.
 
-**AppStoreFire** is an AI-powered App Store marketing content generator with a comprehensive monorepo structure:
-- `client/` - React 19.1.1 + TypeScript + Vite frontend with shadcn/ui components, modern UX patterns, and responsive design
-- `server/` - Node.js/Express API with MVC architecture, Prisma ORM, Supabase storage, Gemini AI integration, and landing page generation
+## End-to-End Workflow
+1. **Upload** – Users authenticate with Supabase, provide app metadata, choose language/device, and upload screenshots (Step 1). Files are compressed in-browser before upload.
+2. **Describe** – Optional AI-assisted screenshot descriptions are collected to improve prompt fidelity (Step 2 via `/api/images/generate-description`).
+3. **Generate** – `/api/generate-and-save` (auth required) streams FormData (metadata + files). Gemini produces ASO copy; `imageGenerationService` builds framed marketing images; both originals and generated assets upload to Supabase Storage; Prisma persists project + image records.
+4. **Edit** – Project workspace (Step 3) surfaces tabs for images, ASO content, project meta, and landing page tooling. Users can regenerate copy, fine-tune assets, and save changes back to the database.
+5. **Refine Images** – `ImageEditor` (canvas) allows drag/drop positioning, font tweaks, theme swaps, and saves immutable image versions through `/api/projects/:projectId/images/:imageId`.
+6. **Export** – Users download single images, project-wide ZIPs (`/api/download-images-zip` legacy or `/api/images/download/:projectId` authenticated), or generate AI-authored landing page bundles via `/api/projects/:id/landing-page`.
 
-### Complete Workflow
-1. **User uploads screenshots** → Browser image compression → Supabase storage
-2. **Gemini AI generates ASO content** → Well-formatted descriptions, titles, keywords with proper line breaks
-3. **Server-side Canvas generates marketing images** → Font overlay + device mockups with color analysis
-4. **ImageEditor allows real-time editing** → Canvas manipulation with drag/drop
-5. **Landing page generation** → AI-powered content creation + EJS templates + ZIP download
-6. **Enhanced UX** → Hover interactions, copy feedback, grouped content sections, progressive disclosure
+## Backend Surface
+### Routes & Contracts
+- **System** (`/`): root greeting, `/health-check` validates Prisma connectivity.
+- **Content** (`/api` prefix):
+  - `POST /generate-content` legacy disk-based flow.
+  - `POST /generate-and-save` (auth, FormData) main workflow.
+  - `POST /regenerate-with-ai` regenerates full ASO package.
+  - `POST /regenerate-content-part` regenerates specific fields (`title`, `subtitle`, `promotionalText`, `description`, `keywords`).
+  - `POST /regenerate-with-ai-legacy` kept for backwards compatibility.
+  - `POST /download-images-zip` legacy unauthenticated ZIP download.
+  - `GET /fonts` enumerates available font families (mapped to server font directories).
+- **Images** (`/api/images`):
+  - `POST /generate-description` (unauthenticated) produces screenshot copy.
+  - `POST /regenerate-image`, `PUT /update-image-config` (auth) regenerate marketing images using stored configuration.
+  - `GET /download/:projectId` (auth) streams Supabase-backed image ZIPs.
+  - `POST /download-zip` and `POST /regenerate-legacy` exist for backward compatibility.
+- **Projects** (`/api/projects`):
+  - `GET /` lists user projects (supports `limit`, `sortBy=createdAt|updatedAt|name`, `order=asc|desc`).
+  - `GET /:id` fetches a project with generated images.
+  - `PUT /:id` updates metadata (`inputAppName`, `inputAppDescription`, etc.).
+  - `PUT /:id/content` persists edited ASO JSON structures.
+  - `DELETE /:id` removes project (TODO: Supabase cleanup).
+  - `POST /:projectId/images/:imageId` saves edited image blobs (legacy but in use).
+  - `POST /save-legacy` handles legacy project persistence.
+  - Landing page helpers: `GET /:id/landing-page` returns stored config/meta; `POST /:id/landing-page` accepts FormData (`appStoreId`, `selectedImageId`, optional `logo`).
+- **Users** (`/api/users`): profile CRUD, stats, account deletion (auth enforced).
 
-## Current Development Environment
+All authenticated routes rely on `middleware/auth.js` which validates Supabase JWTs (`Authorization: Bearer <token>`) and attaches `req.user`.
 
-### Tech Stack
-**Frontend (Client):**
-- **React 19.1.1** - Latest React with concurrent features and improved performance
-- **TypeScript 5.8.3** - Type safety and enhanced developer experience
-- **Vite 7.1.2** - Ultra-fast build tool with hot module replacement
-- **Tailwind CSS 4.1.13** - Latest utility-first CSS framework with enhanced features
-- **shadcn/ui** - Modern component library built on Radix UI primitives
-- **React Router Dom 7.9.1** - Client-side routing with modern patterns
+### Services
+- `geminiService` – Structured JSON prompts for ASO copy respecting Apple guidelines, formatting, character limits, multi-language support.
+- `imageGenerationService` – Node Canvas pipeline that registers fonts, analyzes accent colors via `node-vibrant`, renders headings/subheadings, and composites device frames (`iPhone`, `iPad`). Offers mockup buffer helper for landing pages.
+- `imageDescriptionService` – Sends screenshots to Gemini for descriptive text used in prompts.
+- `storageService` – Supabase Storage helpers (upload, versioned replace, temp downloads, asset cleanup, project asset helpers).
+- `landingPageAIService` – Gemini prompts producing structured landing page content plus translated static text.
+- `landingPageService` – EJS templating + asset packaging, generates device mockups using server Canvas before ZIP creation.
+- `zipService` – Wraps Archiver to build downloadable bundles.
+- `tmpService` – Central temp directory management with scheduled cleanup, path safety, and helper writers.
+- `fileUploadService` – Multer configuration for memory/disk strategies.
 
-**Backend (Server):**
-- **Node.js** - Server runtime environment
-- **Express 5.1.0** - Latest Express with enhanced async support
-- **Prisma 6.16.1** - Modern database toolkit and ORM
-- **Supabase** - Backend-as-a-service with PostgreSQL and authentication
-- **Gemini AI (@google/genai 1.19.0)** - Google's latest AI model for content generation
-- **Canvas 3.2.0** - Server-side image generation and manipulation
-- **Node Vibrant 4.0.3** - Color analysis and extraction from images
-
-**Development Tools:**
-- **npm Workspaces** - Monorepo management with shared dependencies
-- **Nodemon** - Automatic server restart during development
-- **ESLint** - Code linting with modern TypeScript support
-- **TypeScript 5.8.3** - Latest TypeScript compiler
-
-## Current Architecture Patterns
-
-### MVC Pattern with Service Layer (Server)
-**Controllers** (`/server/controllers/`):
-- `contentController.js` - Content generation and regeneration endpoints
-- `imageController.js` - Image processing and Canvas generation
-- `projectController.js` - Project management operations
-- `userController.js` - User authentication and management
-
-**Services** (`/server/services/`):
-- `geminiService.js` - AI content generation with enhanced formatting prompts and schema validation
-- `imageGenerationService.js` - Canvas-based image composition with font registration and color analysis
-- `storageService.js` - Supabase file management with immutable URL versioning and temp file handling
-- `fileUploadService.js` - Multer configuration for memory uploads with size and type validation
-- `imageDescriptionService.js` - Screenshot analysis and AI-powered description generation
-- `zipService.js` - Asset packaging and download functionality with archiver integration
-- `landingPageService.js` - Complete landing page generation with EJS templating and asset bundling
-- `landingPageAIService.js` - AI-powered landing page content generation using Gemini with structured JSON responses
-
-**Routes** (`/server/routes/`):
-- Modular route definitions with proper middleware integration
-- Auth middleware applied consistently across protected endpoints
-
-### Component Composition with Enhanced UX (Client)
-**Current Structure:**
-- Multi-step wizard pattern in `/client/src/pages/ProjectWorkspace.tsx`
-- **Enhanced tabbed interface** with improved visual hierarchy and state management
-- **Hover-reveal interactions** for cleaner UI with progressive disclosure
-- **Real-time feedback** with loading states, copy confirmations, and status indicators
-
-**Key Components:**
-- `ProjectWorkspace.tsx` - Main workspace with 3-step wizard (upload → generate → edit)
-- `AppStoreContentTab.tsx` - Content display with grouped sections, hover-reveal UX, and individual regeneration
-- `ImagesTab.tsx` - Image gallery with download, edit, preview, and batch operations
-- `ProjectOverviewTab.tsx` - Project metadata management, settings, and landing page generation
-- `LandingPageTab.tsx` - Landing page preview and management (empty component, functionality in overview)
-- `ImageEditor.tsx` + `useImageEditor.ts` - Canvas manipulation with cached device mockups
-- `AuthRouter.tsx` + `AuthContext.tsx` - Supabase authentication with session management
-- `ProjectList.tsx` - Dashboard showing all user projects with search and filtering
-- `ProtectedRoute.tsx` - Route protection component for authenticated pages
-- `UserMenu.tsx` - User dropdown with profile and logout options
-- Custom UI components following shadcn/ui patterns with enhanced accessibility
-
-**Page Structure:**
-- `/` - Project dashboard (ProjectList)
-- `/new-project` - Create new project workflow (ProjectWorkspace)
-- `/project/:id` - Edit existing project (ProjectWorkspace)  
-- `/login` - Authentication page
-- `/signup` - User registration page
-- `/settings` - User settings and preferences
-- `/privacy` - Privacy policy page
-
-**Component Architecture:**
-- `Step1.tsx` - Screenshot upload with drag-drop and compression
-- `Step2.tsx` - Content generation with app details form
-- `Step3.tsx` - Content editing with tabbed interface (Content, Images, Overview)
-- `Dropzone.tsx` - File upload component with preview
-- `GeneratingContent.tsx` - Loading state during AI generation
-- `UserMenu.tsx` - User dropdown with profile and logout options
-- `Breadcrumb.tsx` - Navigation breadcrumbs with context awareness
-
-**State Management:**
-- **React Context** for authentication (`AuthContext`) and breadcrumbs (`BreadcrumbContext`)
-- **Component-level state** for UI interactions (loading, copied states, form data)
-- **Persistent forms** - Form state maintained across wizard steps
-- **Canvas state caching** - Device mockups cached in `useImageEditor` hook
-- **No global store** - Clean architecture with props drilling for simplicity
-
-### Font System Architecture
-**Comprehensive font management** across client/server with enhanced mapping:
-- **Client**: CSS @font-face declarations + Google Fonts imports in `/client/src/index.css`
-- **Server**: Node.js Canvas font registration with directory mapping system
-- **Primary Fonts**: 
-  - Display: `Martian Mono` (300, 400, 500 weights) for headings and UI elements
-  - Text: `Geist Mono` (100-900 weights) for body text and content
-- **Local Font Mapping**: 
-  - `'Open Sans'` → `'Open_Sans'` folder
-  - `'Nexa'` → `'Nexa-Font-Family'` folder
-  - Standard fonts: Farro, Headland One, Inter, Lato, Montserrat, Roboto
-- **Font Selection API**: `/api/fonts` endpoint provides available fonts to client
-- **Tailwind Integration**: Custom font families accessible via `font-display`, `font-text`, `font-martian`, `font-geist` classes
-- **Fallback System**: Graceful degradation to monospace fonts on loading failures
-
-## Landing Page Generation System
-
-### AI-Powered Landing Page Creation
-**Complete landing page generation workflow** with AI content creation and professional templates:
-- **`landingPageAIService.js`** - Gemini AI generates landing page content (headlines, features, CTA)
-- **`landingPageService.js`** - EJS template compilation with dynamic content injection
-- **EJS Template System** (`/server/templates/landing-page.ejs`) - Professional HTML template with CSS animations
-- **Asset Bundling** - Includes CSS, JavaScript, fonts, and app screenshots in ZIP package
-- **Download Endpoint** - `/api/projects/:id/landing-page` provides complete website download
-
-### Landing Page Content Structure
-```typescript
-interface LandingPageContent {
-  headline: string;        // Main hero headline
-  subheadline: string;     // Supporting hero text
-  features: Array<{        // Key features list
-    title: string;
-    description: string;
-  }>;
-  callToAction: string;    // Download/action button text
-}
-```
-
-### Landing Page Features
-- **Responsive Design** - Mobile-first CSS with desktop optimization
-- **Professional Animations** - AOS (Animate On Scroll) library integration
-- **App Screenshot Integration** - Automatically includes generated marketing images
-- **SEO Optimized** - Proper meta tags and semantic HTML structure
-- **Brand Consistency** - Uses app name, colors, and generated ASO content
-- **Social Links** - Placeholder social media integration
-- **Contact Forms** - Ready-to-customize contact sections
-- **App Store Badges** - Download buttons for iOS/Android
-
-## Enhanced AI Content Generation
-
-### Gemini Integration with Advanced ASO
-- **Structured JSON responses** with proper schema validation using GoogleGenAI SDK
-- **Enhanced description formatting**: Prompts specify line breaks (`\n\n` for paragraphs, `\n` for lists)
-- **Individual content regeneration**: Focused prompts for title, subtitle, description, keywords
-- **App Store compliance**: Built-in ASO best practices with character limits enforcement
-- **Multi-language support**: Dynamic prompt localization for global markets
-- **Keyword optimization**: Natural integration without stuffing, unique singular keywords
-- **User-centric benefits**: Focus on value propositions and unique differentiators
-
-### Content Formatting Standards
-**Description Format with Line Breaks:**
-```
-Opening hook sentence.
-
-Key benefit paragraph with specific features.
-
-Why it's different from competitors.
-
-• Feature 1: benefit explanation
-• Feature 2: benefit explanation  
-• Feature 3: benefit explanation
-
-Closing call-to-action paragraph.
-```
-
-**Character Limits (App Store Compliance):**
-- Title: 30 characters (brand-driven + keywords)
-- Subtitle: 30 characters (main benefit + secondary keywords)
-- Promotional Text: 170 characters (compelling highlights)
-- Description: 4000 characters (comprehensive with formatting)
-- Keywords: Comma-separated, unique, no Apple defaults
-
-## Critical Development Workflows
-
-### Running the Application
-```bash
-# Root level - runs both client and server
-npm run dev
-
-# Individual services
-npm run dev --workspace=client  # Vite dev server (port 5173)
-npm run dev --workspace=server  # Nodemon (port 3001)
-```
-
-### Database Workflows
-```bash
-# Apply schema changes
-npx prisma migrate dev --name "migration_name"
-# Reset database (dev only)  
-npx prisma migrate reset --force
-# Generate Prisma client
-npx prisma generate
-```
-
-### Font Management
-When adding fonts, ensure consistency:
-1. Add to both `/client/public/fonts/FontName/` and `/server/assets/fonts/FontName/`
-2. Use standard naming: `FontName-Regular.ttf`, `FontName-Bold.ttf`
-3. Update CSS @font-face in `/client/src/index.css`
-4. Update font mapping in `/server/services/imageGenerationService.js`
-```bash
-# Root level - runs both client and server
-npm run dev
-
-# Individual services
-npm run dev --workspace=client  # Vite dev server (port 5173)
-npm run dev --workspace=server  # Nodemon (port 3001)
-```
-
-### Database Workflows
-```bash
-# Apply schema changes
-npx prisma migrate dev --name "migration_name"
-# Reset database (dev only)  
-npx prisma migrate reset --force
-# Generate Prisma client
-npx prisma generate
-```
-
-### Font Management
-When adding fonts, ensure consistency:
-1. Add to both `/client/public/fonts/FontName/` and `/server/assets/fonts/FontName/`
-2. Use standard naming: `FontName-Regular.ttf`, `FontName-Bold.ttf`
-3. Update CSS @font-face in `/client/src/index.css`
-4. Update font mapping in `/server/services/imageGenerationService.js`
-
-## Current API Architecture
-
-### Primary Endpoints
-- **`/api/generate-and-save`** - Core workflow endpoint (auth → upload → AI → generation → storage)
-- **`/api/regenerate-content-part`** - Individual content regeneration with focused prompts
-- **`/api/regenerate-with-ai`** - Full content regeneration with current project context
-- **`/api/projects`** - Project management (CRUD operations with user-scoped data)
-- **`/api/projects/:id/landing-page`** - Landing page generation and ZIP download
-- **`/api/images`** - Image processing, Canvas generation, and editing
-- **`/api/users`** - User management and authentication
-- **`/api/fonts`** - Available fonts endpoint with client-server mapping
-- **`/api/system`** - System utilities and health checks
-
-### Route Organization
-- **`/routes/content.js`** - Content generation, regeneration, and font endpoints
-- **`/routes/projects.js`** - Project CRUD operations and management
-- **`/routes/images.js`** - Image processing, editing, and download functionality
-- **`/routes/users.js`** - User authentication and profile management
-- **`/routes/system.js`** - System utilities and monitoring
-
-### API Patterns
-- **Modular routing** - Routes organized by domain with clear separation
-- **Controller-service separation** - Business logic in services, HTTP handling in controllers
-## Current API Architecture
-
-### Primary Endpoints
-- **`/api/generate-and-save`** - Core workflow endpoint (auth → upload → AI → generation → storage)
-- **`/api/regenerate-content-part`** - Individual content regeneration with focused prompts
-- **`/api/regenerate-with-ai`** - Full content regeneration with current project context
-- **`/api/projects`** - Project management (CRUD operations with user-scoped data)
-- **`/api/projects/:id/landing-page`** - Landing page generation and ZIP download
-- **`/api/images`** - Image processing, Canvas generation, and editing
-- **`/api/users`** - User management and authentication
-- **`/api/fonts`** - Available fonts endpoint with client-server mapping
-- **`/api/system`** - System utilities and health checks
-
-### Route Organization
-- **`/routes/content.js`** - Content generation, regeneration, and font endpoints
-- **`/routes/projects.js`** - Project CRUD operations and management
-- **`/routes/images.js`** - Image processing, editing, and download functionality
-- **`/routes/users.js`** - User authentication and profile management
-- **`/routes/system.js`** - System utilities and monitoring
-
-### API Patterns
-- **Modular routing** - Routes organized by domain with clear separation
-- **Controller-service separation** - Business logic in services, HTTP handling in controllers
-- **Immutable URLs** - Image edits create new versioned files (`image_v1640995200000.jpg`)
-- **Background cleanup** - Old image versions cleaned up async via `setImmediate()`
-- **Multipart forms** - Screenshots as FormData, metadata as JSON strings
-- **JWT Authentication** - Supabase session tokens for API security with `requireAuth` middleware
-
-## Enhanced UX Patterns
-
-### Modern Component Design
-**AppStoreContentTab.tsx** - Recently optimized with:
-- **Grouped content sections** (Basic Info, Marketing Content, SEO & Discovery)
-- **Hover-reveal actions** - Buttons appear only on hover to reduce clutter
-- **Visual feedback** - Copy confirmation with checkmarks, loading states
-- **Contextual tooltips** - Clear guidance for each action
-- **Proper content hierarchy** - Sectioned layout with descriptive headings
-
-### Interaction Patterns
-- **Progressive disclosure** - Actions revealed on interaction
-- **Consistent spacing** - Tailwind space utilities for uniform layout
-- **Accessibility** - Proper ARIA labels and keyboard navigation
-- **Real-time feedback** - Loading states, copy confirmations, error handling
-
-### State Management
-- **React Context** for authentication (`AuthContext`) and breadcrumbs (`BreadcrumbContext`)
-- **Component-level state** for UI interactions (loading, copied states, form data)
-- **Persistent forms** - Form state maintained across wizard steps
-- **Canvas state caching** - Device mockups cached in `useImageEditor` hook
-- **No global store** - Clean architecture with props drilling for simplicity
-
-## Text Display and Formatting
-
-### Description Rendering
-- **Frontend**: Uses `whitespace-pre-wrap` CSS class for proper line break display
-- **Backend**: AI generates content with explicit `\n` and `\n\n` formatting
-- **Consistency**: All multiline content uses the same rendering approach
-
-### Content Structure
-```typescript
-interface GeneratedText {
-  title: string;
-  subtitle: string; 
-  promotionalText: string;
-  description: string; // Now supports formatted text with line breaks
-  keywords: string;
-  headings: {
-    heading: string;
-    subheading: string;
-  }[];
-}
-```
-
-### Canvas Rendering Patterns
-Client-side (`useImageEditor.ts`):
-```typescript
-// Font preloading before canvas rendering
-await document.fonts.load(`${fontSize}px "${fontFamily}"`);
-context.font = `bold ${fontSize}px "${fontFamily}"`;
-```
-
-Server-side (`imageGenerationService.js`):
-```javascript
-// Dynamic font registration with fallback
-registerFont(fontPath, { family: fontFamily, weight: 'bold' });
-```
-
-### Error Handling
-- **Graceful font failures** - Falls back to default fonts (Farro/Headland One) when custom fonts fail to load
-- **Upload validation** - Client-side compression + server-side multer limits with proper error messages
-- **Auth middleware** - `requireAuth()` extracts Supabase user from JWT with comprehensive error handling
-- **AI service resilience** - Rate limiting and error recovery for Gemini API with retry mechanisms
-- **Content regeneration fallbacks** - Individual content part regeneration on failures with user feedback
-- **Database transaction handling** - Proper Prisma error handling with cascading deletes
-- **File upload security** - Memory storage with size limits and MIME type validation
-- **Accent color fallbacks** - Graceful fallback to default colors when color extraction fails (`#4F46E5`)
-
-## Integration Points
-
-### Supabase Integration
-- **Auth**: JWT tokens for API authentication with `requireAuth` middleware
-- **Storage**: File uploads with user-scoped paths (`userId/filename`) 
-- **Database**: PostgreSQL with Prisma migrations and user relations
-
-### Database Schema (Prisma)
+### Data Model (Prisma excerpt)
 ```prisma
 model User {
-  id        String    @id @default(uuid()) // Supabase auth user ID
+  id        String    @id @default(uuid())
   email     String?   @unique
+  name      String?
   createdAt DateTime? @map("created_at")
-  projects  Project[] // One-to-many relationship
+  updatedAt DateTime? @map("updated_at")
+  projects  Project[]
 }
 
 model Project {
   id                  String    @id @default(cuid())
   name                String
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
   inputAppName        String
   inputAppDescription String
-  language            String?   // User-selected language for content
-  device              String?   // Target device (iPhone/iPad)
-  generatedAsoText    Json?     // ASO content as JSON
-  
-  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId            String
-  generatedImages   GeneratedImage[] // One-to-many relationship
+  language            String?
+  device              String?
+  generatedAsoText    Json?
+  landingPageConfig   Json?
+  landingPageZipUrl   String?
+  landingPageZipUpdatedAt DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  userId              String
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  generatedImages     GeneratedImage[]
 }
 
 model GeneratedImage {
   id                  String   @id @default(cuid())
+  sourceScreenshotUrl String
+  generatedImageUrl   String
+  accentColor         String?
+  configuration       Json?
+  description         String?
   createdAt           DateTime @default(now())
-  sourceScreenshotUrl String   // Original screenshot URL
-  generatedImageUrl   String   // Generated marketing image URL  
-  accentColor         String?  // Extracted background color
-  configuration       Json?    // Font, heading, styling config
-  
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  projectId String
+  projectId           String
+  project             Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
 ```
 
-### Gemini AI Integration  
-- **Structured prompts** with ASO best practices and formatting specifications using GoogleGenAI SDK
-- **Individual content regeneration** with focused, context-aware prompts for each content type
-- **Language support** - Dynamic prompt localization for global markets
-- **Rate limiting** - 503 handling for model overload with graceful error recovery
-- **Content formatting** - Explicit line break and structure instructions for App Store compliance
-- **ASO Guidelines Integration** - Keyword optimization, user-centric benefits, Apple guideline compliance
+## Frontend Surface
+### Application Shell & Context
+- `AppRouter` gates routes through `AuthRouter` and `ProtectedRoute`, sharing layout via `MainLayout`.
+- Contexts: `AuthContext` (Supabase session), `ProjectContext` (selected project metadata for top panels), `BreadcrumbContext`, theme toggles, file upload helpers.
+- `StudioHome` dashboard surfaces recent projects with quick navigation; `ProjectHistory` provides searchable archive.
 
-### External Dependencies
-- **Node Canvas** - Server-side image generation (requires native compilation)
-- **Sharp/Vibrant** - Color analysis for dynamic backgrounds  
-- **Browser Image Compression** - Client-side file optimization before upload
-- **EJS** - Server-side template engine for landing page generation
-- **Archiver** - ZIP file creation for downloadable packages
-- **UUID** - Unique identifier generation for projects and images
-- **FS-Extra** - Enhanced file system operations with promises
-- **Hero Icons** - Consistent iconography across the application
-- **Radix UI** - Headless UI components for accessibility and interactions
-- **Tailwind CSS** - Utility-first CSS framework with animations and custom themes
-- **Sonner** - Toast notifications and user feedback
-- **React Router Dom 7.9.1** - Client-side routing with modern patterns
-- **Jotai** - Atomic state management (minimal usage)
-- **Lucide React** - Additional icon set for enhanced UI
-- **React Medium Image Zoom** - Image zoom functionality in galleries
-- **React Resizable Panels** - Layout management components
-- **React Dropzone** - Drag-and-drop file upload interface
-- **Date-fns** - Modern date utility library for formatting
-- **Embla Carousel React** - Touch-friendly carousel components
-- **React Lazy Load Image Component** - Performance optimization for image loading
+### Project Workspace (multi-step)
+1. **Step1** – Intake form + screenshot gallery (`GalleryUpload`) with Dropzone + client compression; validates portrait aspect ratios per selected device (iPhone/iPad). Language options: English, Spanish, French, German, Japanese, Polish.
+2. **Step2** – Screenshot description grid with AI auto-fill button per image. Loading states handled via `GeneratingContent` spinner when generation runs.
+3. **Step3** – Tabbed studio (`Tabs` component) exposing:
+   - **ImagesTab** – Lazy-loaded gallery with hover actions (download, edit), optional view of original screenshots, ZIP download, accent color chips.
+   - **AppStoreContentTab** – Sectioned ASO editor with character counters, copy actions, per-field regeneration hitting `/api/regenerate-content-part`, inline editing with validation.
+   - **ProjectOverviewTab** – Metadata cards (created/updated timestamps, language/device), autosave-on-blur for name/description, danger zone for deletion, badges for counts.
+   - **LandingPageTab** – Form for App Store ID, hero image selection, optional logo upload (2 MB limit). Fetches/saves config, tracks previous build timestamp, generates and downloads landing page ZIP, reuses existing assets, renders live previews using canvas helpers.
 
-## File Structure Patterns
-- **MVC separation**: Controllers handle HTTP, services contain business logic
-- **Co-location**: Component + hook pairs (e.g., `ImageEditor.tsx` + `useImageEditor.ts`)
-- **Service isolation**: Each server service is self-contained with clear responsibility
-- **Asset management**: Fonts duplicated across client/server for rendering consistency
-- **Type safety**: Shared interfaces between client/server (see `GeneratedText` interface)
-- **Route modularity**: Separate route files for each domain (content, images, projects, users)
+### Image Editing Stack
+- `ImageEditor` dialog uses canvas via `useImageEditor` hook: caches device mockups, wraps text, tracks draggable elements (mockup/heading/subheading), highlights hover/drag states.
+- Themes defined in `constants/imageThemes.ts` with accent, gradient, ribbon overlays. Selections update heading/subheading colors and backgrounds, with accent fallback to extracted palette or default `#4F46E5`.
+- Saving posts FormData blob to `/api/projects/:projectId/images/:imageId`, stores configuration (positions, fonts, colors, theme). Supabase Storage responds with immutable URLs; client clears caches to avoid stale content.
 
-## Current Development Priorities
+### Additional UX Notes
+- All multiline copy rendered with `whitespace-pre-wrap` to respect server-sent formatting.
+- Toast feedback via Sonner for copy, download, errors.
+- Large assets load through `LazyImage` and `ImageZoom` for performance and accessibility.
+- Sidebar navigation mirrors route segments (`/project/:id/{images|text-content|overview|landing-page}`) to keep tabs deep-linkable.
 
-### UX/UI Excellence
-- **Modern interaction patterns** with hover states and progressive disclosure
-- **Consistent visual hierarchy** with proper content grouping
-- **Accessibility compliance** with ARIA labels and keyboard navigation
-- **Real-time feedback** for all user actions
+## Environment & Tooling
+- **Local dev**: `npm run dev` (concurrently runs client + server), or `npm run dev --workspace=client|server` individually.
+- **Build**: `npm run build --workspace=client` (tsc references `tsconfig.app.json`). Server currently runs directly via Node; add build steps if TS introduced.
+- **Lint**: `npm run lint --workspace=client` using flat ESLint config.
+- **Fonts**: Add files to both `client/public/fonts/<Family>/` and `server/assets/fonts/<Family>/`; update CSS (`client/src/index.css`) and server font mapping in `imageGenerationService`. Use consistent naming (`Family-Weight.ttf`).
+- **Env vars** (store in `.env`): `GEMINI_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_KEY`, `DATABASE_URL`, optional TMP controls (`TMP_MAX_FILE_AGE_HOURS`, `TMP_CLEANUP_INTERVAL_MINUTES`).
 
-### AI Content Quality
-- **Enhanced prompting** for better formatted, structured content
-- **Individual regeneration** capabilities for fine-tuned control
-- **App Store optimization** with character limits and ASO best practices
-- **Multi-language support** for global app markets
+## Coding Guidelines
+1. **Investigate before editing** – Trace symbols across client and server before altering shared types like `GeneratedText` or API payloads.
+2. **Maintain API contracts** – Any backend response change requires corresponding frontend updates. Keep JSON keys stable unless coordinated.
+3. **Respect MVC/service separation** – Put business logic in services; controllers only orchestrate HTTP concerns.
+4. **Preserve UX patterns** – Use hover-reveal buttons, consistent spacing (Tailwind), accessible labels, meaningful toasts. Follow existing shadcn/ui composition patterns.
+5. **Use official tooling** – Install new UI primitives via `npx shadcn@latest add <component>`; do not paste from the docs.
+6. **Icon discipline** – Use Hero Icons (`@heroicons/react/24/outline` or `/solid`), typical size `h-4 w-4` unless a design calls for larger.
+7. **Formatting standards** – For AI-generated copy, preserve double line breaks for paragraphs and single line breaks for bullet lists. Ensure character limits remain within App Store constraints.
+8. **Error handling** – Provide actionable messages, log failures server-side, and surface friendly toasts client-side. Use fallbacks (default fonts, colors) when external resources fail.
+9. **Authentication awareness** – Client fetches that reach protected endpoints must pass the Supabase access token. Keep anonymous helpers (`/api/images/generate-description`, legacy ZIP) unchanged unless product decision.
+10. **Temp file hygiene** – When creating files under `tmp/`, rely on `tmpService` helpers and schedule cleanup if leaving background tasks.
 
-### Performance & Reliability
-- **Image optimization** with proper compression and caching
-- **Error resilience** across all external service integrations
-- **Database transaction safety** with proper error handling
-- **Background cleanup** for temporary files and old image versions
+## Validation & Quality
+- After modifying runnable code, build or run targeted checks (e.g., `npm run lint --workspace=client`, quick smoke by loading project workspace) whenever feasible.
+- Maintain the zero-test baseline consciously; if you introduce tests ensure they run via npm scripts.
 
-## Current Development Priorities
 
-### UX/UI Excellence
-- **Modern interaction patterns** with hover states and progressive disclosure
-- **Consistent visual hierarchy** with proper content grouping
-- **Accessibility compliance** with ARIA labels and keyboard navigation
-- **Real-time feedback** for all user actions
-
-### AI Content Quality
-- **Enhanced prompting** for better formatted, structured content
-- **Individual regeneration** capabilities for fine-tuned control
-- **App Store optimization** with character limits and ASO best practices
-- **Multi-language support** for global app markets
-
-### External Dependencies
-**Client Dependencies:**
-- **@heroicons/react** - Consistent iconography across the application
-- **@radix-ui** components - Headless UI components for accessibility and interactions (Alert Dialog, Avatar, Dialog, Dropdown Menu, Label, Radio Group, Select, Separator, Slot, Switch, Tabs, Tooltip)
-- **@supabase/supabase-js** - Supabase client for authentication and storage
-- **@tailwindcss/line-clamp** - Text truncation utilities
-- **@tanstack/react-table** - Table components and data management
-- **browser-image-compression** - Client-side file optimization before upload
-- **class-variance-authority** - Type-safe component variants
-- **clsx** - Conditional className utility
-- **date-fns** - Modern date utility library for formatting
-- **embla-carousel-react** - Touch-friendly carousel components
-- **jotai** - Atomic state management (minimal usage)
-- **lucide-react** - Additional icon set for enhanced UI
-- **next-themes** - Theme switching functionality
-- **react-dropzone** - Drag-and-drop file upload interface
-- **react-lazy-load-image-component** - Performance optimization for image loading
-- **react-medium-image-zoom** - Image zoom functionality in galleries
-- **react-resizable-panels** - Layout management components
-- **sonner** - Toast notifications and user feedback
-- **tailwind-merge** - Tailwind CSS class merging utility
-- **tailwindcss-animate** - Animation utilities for Tailwind
-
-**Server Dependencies:**
-- **@google/genai** - Google Gemini AI integration for content generation
-- **@prisma/client** - Database client and ORM
-- **@supabase/supabase-js** - Server-side Supabase integration
-- **archiver** - ZIP file creation for downloadable packages
-- **axios** - HTTP client for external API requests
-- **canvas** - Server-side image generation (requires native compilation)
-- **cors** - Cross-origin resource sharing middleware
-- **dotenv** - Environment variable management
-- **ejs** - Server-side template engine for landing page generation
-- **express** - Web application framework
-- **fs-extra** - Enhanced file system operations with promises
-- **multer** - Multipart form data handling for file uploads
-- **node-vibrant** - Color analysis for dynamic backgrounds
-- **uuid** - Unique identifier generation for projects and images
-
-### System Architecture
-- **Clean separation of concerns** with MVC pattern
-- **Scalable service architecture** for easy feature additions
-- **Robust error handling** across all integration points
-- **Performance optimization** with caching and async operations
-
-## General Guidelines for Code Modifications
-
-To ensure stability and prevent regressions, all code modifications—especially those generated by AI—must adhere to the following principles. The primary directive is: **Do not break existing functionality by ignoring dependencies.**
-
--   **Analyze Before You Edit:** Before modifying any file, understand its role and its connections to other parts of the application. A change in one component can have unintended consequences elsewhere. For example, editing the content structure in `AppStoreContentTab.tsx` must maintain compatibility with the content generation APIs.
-
--   **Trace Dependencies:** When asked to change a component, function, or state variable, you **must** first trace its usage across the entire codebase.
-    -   *Example:* If you modify the `GeneratedText` interface, you must verify that both frontend components and backend services are updated to handle the new structure correctly.
-
--   **Respect the Frontend-Backend Contract:** The Node.js/Express backend and React frontend have well-defined API contracts:
-    -   **Content Generation**: `/api/generate-and-save` and `/api/regenerate-content-part` endpoints expect specific payload structures
-    -   **Authentication**: All protected endpoints require proper JWT token handling
-    -   **Response Formats**: JSON responses must maintain consistent structure for frontend consumption
-
--   **Maintain MVC Architecture:** The current controller-service pattern must be preserved:
-    -   Controllers handle HTTP requests/responses and validation
-    -   Services contain business logic and external API interactions
-    -   Routes define endpoint mappings with proper middleware
-
--   **UX Consistency:** All UI modifications must follow established patterns:
-    -   Use hover-reveal interactions for secondary actions
-    -   Implement proper loading states and feedback mechanisms
-    -   Maintain consistent spacing and typography using Tailwind utilities
-    -   Follow accessibility best practices with proper ARIA labels
-
--   **Content Formatting Standards:** When modifying AI content generation:
-    -   Maintain proper line break formatting (`\n\n` for paragraphs, `\n` for lists)
-    -   Preserve character limits for App Store compliance
-    -   Ensure frontend components use `whitespace-pre-wrap` for formatted text display
-
--   **Use shadcn/ui Components:** When adding new UI components, always:
-    -   Use `npx shadcn@latest add {component-name}` instead of copying code
-    -   Follow established component patterns and theming
-    -   Maintain consistent styling with existing components
-
--   **Icon Standards:** Use Hero Icons exclusively for consistency:
-    -   Import from `@heroicons/react/24/outline` or `@heroicons/react/24/solid`
-    -   Maintain consistent sizing (typically `h-4 w-4` or `h-3.5 w-3.5`)
-    -   Use semantic icon choices that match their purpose
-
--   **Error Handling:** Implement comprehensive error handling:
-    -   Graceful degradation for external service failures
-    -   User-friendly error messages with actionable guidance
-    -   Proper logging for debugging and monitoring
-    -   Fallback mechanisms for critical functionality
+Stay aligned with this reference whenever you extend AppStoreFire. Keep the experience polished for indie developers relying on AI-assisted marketing.
