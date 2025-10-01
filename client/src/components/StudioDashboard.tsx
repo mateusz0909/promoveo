@@ -11,7 +11,9 @@ import {
   DocumentTextIcon, 
   PhotoIcon,
   ArrowRightIcon,
-  SparklesIcon
+  SparklesIcon,
+  DevicePhoneMobileIcon,
+  DeviceTabletIcon
 } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/utils';
 import logo from '@/assets/logo.svg';
@@ -176,33 +178,39 @@ export const StudioDashboard: React.FC<StudioDashboardProps> = ({ className }) =
                   </div>
                 ))
               ) : (
-                recentProjects.map((project) => (
-                  <div
-                    key={project.id}
-                    onClick={() => handleProjectSelect(project.id)}
-                    className="flex items-center space-x-4 p-4 border-b last:border-b-0 hover:bg-muted/50 cursor-pointer transition-colors group"
-                  >
-                    <div className="h-12 w-12 bg-primary/10 rounded-lg flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                      <PhotoIcon className="h-6 w-6 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-medium truncate group-hover:text-primary transition-colors">
-                        {project.inputAppName}
-                      </h3>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <span>{formatDate(project.updatedAt)}</span>
-                        <span>•</span>
-                        <Badge variant="outline" className="text-xs">
-                          {project.device}
-                        </Badge>
-                        <Badge variant="outline" className="text-xs">
-                          {project.language}
-                        </Badge>
+                recentProjects.map((project) => {
+                  const DeviceIcon = project.device?.toLowerCase().includes('ipad') 
+                    ? DeviceTabletIcon 
+                    : DevicePhoneMobileIcon;
+                  
+                  return (
+                    <div
+                      key={project.id}
+                      onClick={() => handleProjectSelect(project.id)}
+                      className="flex items-center space-x-4 p-4 border-b last:border-b-0 hover:bg-muted/50 cursor-pointer transition-colors group"
+                    >
+                      <div className="h-12 w-12 bg-primary/10 rounded-lg flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                        <DeviceIcon className="h-6 w-6 text-primary" />
                       </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium truncate group-hover:text-primary transition-colors">
+                          {project.inputAppName}
+                        </h3>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <span>{formatDate(project.updatedAt)}</span>
+                          <span>•</span>
+                          <Badge variant="outline" className="text-xs">
+                            {project.device}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {project.language}
+                          </Badge>
+                        </div>
+                      </div>
+                      <ArrowRightIcon className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
                     </div>
-                    <ArrowRightIcon className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </CardContent>

@@ -2,56 +2,69 @@
 
 ## Executive Summary
 
-For every developer, the greatest feeling is finishing the code. But the greatest frustration is the barrier that comes next. The project is built, but it's not *live*. Your momentum stalls at the final, creativity-draining mile: creating all the required store content.
+Independent builders sprint through product engineering only to stall at launch. Screenshots need framing, copy needs polishing, landing pages need crafting, and the App Store has unforgiving checklists. **Lemmi Studio** clears that final mile.
 
-**This is why we built Lemmi Studio.**
-
-The name comes from Latin, meaning "I move forward." Our entire purpose is to propel your project through the final, tedious phase of content creation and carry your momentum across the finish line.
-
-**Lemmi Studio is your new go-live kit.** It's an AI-powered toolkit designed to automate the entire App Store launch process. We handle the laborious design and writing tasks so you can stay focused on what you do best: building incredible software.
+Named after the Latin *lemmī* (“I move forward”), Lemmi Studio is the AI-powered go-live kit that handles App Store storytelling from first screenshot to polished landing page. We automate the tedious parts without stealing your creative control, so you keep momentum all the way to “Ready for Sale.”
 
 ---
 
 ## 🎯 Value Pillars
 
-### Generate Polished Store Assets
-- Transform raw screenshots into beautiful, persuasive App Store images with AI-generated headings and copy.
-- Auto-detect accent colors, select fonts from a curated library, and compose on-brand captions.
-- Batch-generate collections per project 
-- Use the advanced canvas editor for drag/drop positioning, theme swaps, and font controls.
+### AI-Perfected Store Visuals
+- Transform raw screenshots into persuasive App Store images with AI-authored headings and subheadings.
+- Auto-detect accent colors, respect device frames, and apply curated themes with live previews.
+- Refine layouts in the canvas editor—drag, rotate, resize, swap fonts, or switch themes before saving immutable versions.
 
-### Craft Perfect ASO Content
-- Instantly create keyword-optimized descriptions and marketing text to maximize your app's visibility.
-- Generate App Store-ready titles, subtitles, descriptions, promotional text, and keyword lists using AI.
-- Enforce character limits, keyword best practices, and paragraph spacing that match Apple guidelines.
-- Regenerate the entire package or a single field without overwriting other edits.
+### Conversion-Ready ASO Copy
+- Generate titles, subtitles, promotional text, descriptions, and keyword sets tuned to Apple guidelines.
+- Regenerate the full package or a single field without overwriting other edits; character counters keep you compliant.
+- Copy-to-clipboard shortcuts and toast feedback turn approvals into a single click.
 
-### Build Your Web Presence
-- Automatically generate a downloadable landing page and a compliance-ready privacy policy in minutes.
-- Produce a complete marketing landing page using AI-authored hero copy, feature sections, FAQs, and CTAs.
-- Package static HTML, CSS, assets, and device mockups into a downloadable ZIP for instant deployment.
-- Allow manual tweaks (App Store ID, hero image selection, optional logo upload) while preserving previous builds for reference.
+### Landing Pages in Minutes
+- Feed a project ID, select a hero image, drop in an optional logo, and let AI draft a complete marketing page.
+- Device-aware mockups, translated static copy, and bundled assets ship in one downloadable ZIP.
+- Previous builds stay accessible, so you can iterate without losing history.
+
+### Operational Confidence
+- Studio dashboard highlights recent work; history search keeps archives handy.
+- Autosave protects ASO edits, while Supabase-backed storage versioning safeguards image changes.
+- Authenticated downloads, project deletion controls, and progress toasts keep teams informed at every step.
 
 ---
 
 ## 🔄 Product Workflow
 
-1. **Authenticate**: Securely log in to access the studio, while anonymous helpers (e.g., screenshot description generator) remain public for virality.
-2. **Step 1 – Upload**: Compress screenshots client-side, enforce portrait ratios per device, and capture app metadata, language, and target device.
-3. **Step 2 – Describe**: Optionally enrich each screenshot with AI-generated descriptions to improve image prompt fidelity.
-4. **Step 3 – Studio**: Access tabs for marketing images, ASO text, project overview, and landing page builder with live previews and toasts for all actions.
-5. **Export**: Download individual PNGs, bulk ZIPs, or full landing page packages; regenerate copy or images anytime without losing edits.
+1. **Authenticate & Launch** – Log in with Supabase Auth. The Studio dashboard surfaces recent projects and quick-start CTA; Project History provides full search and filters.
+2. **Step 1 · Upload** – Provide app metadata, choose language and device, and upload up to 10 screenshots. Client-side compression and aspect-ratio validation guarantee compliant assets.
+3. **Step 2 · Describe** – Optionally auto-generate per-screenshot descriptions with AI, or edit manually to steer the prompt.
+4. **Step 3 · Studio Tabs** –
+	- **Images**: Review generated marketing images, download singles or the full ZIP, or launch the canvas editor for fine-tuning.
+	- **Text Content**: Inspect AI copy with character counts, copy/share instantly, or regenerate specific fields.
+	- **Overview**: Adjust project metadata, see creation/update timestamps, and manage deletion.
+	- **Landing Page**: Configure App Store ID, pick a hero visual, upload a logo (2 MB limit), preview device mockups, and generate a fresh landing-page bundle.
+5. **Export & Iterate** – Download Supabase-backed ZIPs, regen content on demand, or revisit any project later from the dashboard/history without losing context.
+
+---
+
+## ✨ Feature Highlights
+
+- **AI Screenshot Helpers**: Generate image descriptions and headline/subheadline suggestions directly from uploads.
+- **Canvas Editor**: Drag, rotate, and scale device mockups with smart guides; swap themes and fonts on the fly.
+- **Accent Color Intelligence**: Automatic palette extraction keeps visuals on-brand, with curated theme fallbacks.
+- **Autosave + Versioning**: ASO edits persist immediately, and Supabase versioning keeps every image update immutable.
+- **Landing Page Memory**: Store App Store IDs, logos, and last ZIP download for quick rebuilds.
+- **Toast-First UX**: Instant feedback for copies, downloads, saves, and errors keeps teams confident.
 
 ---
 
 ## 📈 Customer Outcomes
 
-- **Launch faster**: Reduce production of App Store assets from days to hours with AI-assisted workflows.
-- **Stay on brand**: Automatic accent color detection and editable themes keep visuals consistent without design overhead.
-- **Scale globally**: Multi-language copy unlocks immediate expansion into new storefronts.
-- **Ship confidently**: Pre-validated character counts, previewable assets, and downloadable bundles remove submission risk.
-- **Bring teams together**: Shared studio workspace keeps copy, imagery, and landing page tooling in sync for product, marketing, and founders alike.
+- **Launch faster** – Compress the entire App Store prep from days to hours with guided AI flows.
+- **Stay on brand** – Consistent themes, fonts, and accents maintain a polished identity across assets.
+- **Scale globally** – Multi-language copy and reusable landing pages make international expansion effortless.
+- **Ship confidently** – Compliance guardrails, autosave, and downloadable bundles reduce approval risk.
+- **Collaborate smoothly** – Shared dashboards, history, and reproducible ZIPs keep marketing and product in sync.
 
 ---
 
-Stop letting content creation be the roadblock. **Lemmi Studio** is here to clear the path, maintain your velocity, and move your app forward—from your codebase to the "Ready for Sale" button.
+Stop letting content creation derail your launch. **Lemmi Studio** propels you from finished code to live listing—images, copy, landing page, and everything in between.

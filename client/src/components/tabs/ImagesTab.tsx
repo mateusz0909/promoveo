@@ -114,7 +114,7 @@ export const ImagesTab = ({
                           <LazyImage
                                               src={image.sourceScreenshotUrl}
                             alt={`Uploaded screenshot ${index + 1}`}
-                            className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.03]"
+                            className="h-full w-full object-cover transition-transform duration-200"
                           />
                           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-200" />
                         </div>
@@ -148,7 +148,7 @@ export const ImagesTab = ({
                         <LazyImage
                           src={generatedUrl}
                           alt={`Generated Image ${index + 1}`}
-                          className=" w-full  object-contain transition-transform duration-200 group-hover:scale-[1.02] cursor-zoom-in"
+                          className=" w-full  object-contain transition-transform duration-200 cursor-zoom-in"
                         />
                       
                       {/* Action Overlay */}
@@ -207,23 +207,11 @@ export const ImagesTab = ({
                         <CheckCircleIcon className="h-4 w-4 text-green-500 flex-shrink-0" />
                       </div>
                       
-                      {image.configuration?.heading && (
-                        <div className="space-y-1">
-                          <p className="text-xs text-muted-foreground">Heading</p>
-                          <p className="text-sm font-medium leading-tight">{image.configuration.heading}</p>
-                        </div>
-                      )}
-                      
-                      {image.configuration?.subheading && (
-                        <div className="space-y-1">
-                          <p className="text-xs text-muted-foreground">Subheading</p>
-                          <p className="text-xs text-muted-foreground leading-tight">{image.configuration.subheading}</p>
-                        </div>
-                      )}
+            
 
                       {image.accentColor && (
                         <div className="flex items-center gap-2">
-                          <p className="text-xs text-muted-foreground">Color</p>
+                          <p className="text-xs text-muted-foreground">Accent color</p>
                           <div 
                             className="w-4 h-4 rounded border border-border shadow-sm"
                             style={{ backgroundColor: image.accentColor }}

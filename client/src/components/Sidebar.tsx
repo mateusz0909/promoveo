@@ -37,7 +37,7 @@ import {
   ArrowLeftOnRectangleIcon,
 } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/utils';
-import logo from '@/assets/logo.svg';
+import logo from '@/assets/sidebarLogo.svg';
 
 interface Project {
   id: string;
@@ -205,14 +205,14 @@ export function AppSidebar({ }: AppSidebarProps) {
   return (
     <TooltipProvider delayDuration={2000}>
       <Sidebar variant='sidebar'>
-      <SidebarHeader className="p-4">
+      <SidebarHeader className="p-4 flex items-center justify-center">
         <Link to="/" className="flex items-center gap-2">
           <img 
             src={logo} 
             alt="Lemmi Studio Logo" 
-            className="h-8 w-8 dark:invert transition-all duration-200" 
+            className="max-w-25 dark:invert transition-all duration-200" 
           />
-          <span className="text-lg font-semibold">Lemmi Studio</span>
+          
         </Link>
       </SidebarHeader>
 
