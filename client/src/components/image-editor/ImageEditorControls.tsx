@@ -1,4 +1,4 @@
-import type { ImageEditorTheme } from "@/types/project";
+import type { ImageEditorTheme, ImageLayout } from "@/types/project";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
@@ -40,6 +40,8 @@ interface ImageEditorControlsProps {
   onSubheadingFontSizeChange: (value: number) => void;
   selectedTheme: ImageEditorTheme;
   onThemeChange: (theme: ImageEditorTheme) => void;
+  layout: ImageLayout;
+  onLayoutChange: (layout: ImageLayout) => void;
   onRegenerateContent?: (style: 'concise' | 'detailed') => void;
   isRegenerating?: boolean;
 }
@@ -60,6 +62,8 @@ export const ImageEditorControls = ({
   onSubheadingFontSizeChange,
   selectedTheme,
   onThemeChange,
+  layout,
+  onLayoutChange,
   onRegenerateContent,
   isRegenerating = false,
 }: ImageEditorControlsProps) => {
@@ -79,6 +83,24 @@ export const ImageEditorControls = ({
       <div className="space-y-1">
         <Label className="text-xs">Theme</Label>
         <ThemeSelector selectedTheme={selectedTheme} setSelectedTheme={onThemeChange} />
+      </div>
+
+      {/* Layout Section */}
+      <div className="space-y-1 pb-2 border-b">
+        <Label className="text-xs">Layout</Label>
+        <Select value={layout} onValueChange={onLayoutChange}>
+          <SelectTrigger className="h-9 text-xs">
+            <SelectValue placeholder="Select layout" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="text-top" className="text-xs">
+              Text on Top
+            </SelectItem>
+            <SelectItem value="text-bottom" className="text-xs">
+              Text on Bottom
+            </SelectItem>
+          </SelectContent>
+        </Select>
       </div>
       
       {/* AI Generation Section */}

@@ -4,18 +4,21 @@ import { ProjectWorkspace } from "./pages/ProjectWorkspace";
 import { ProjectHistory } from "./pages/ProjectHistory";
 import { SettingsPage } from "./pages/SettingsPage";
 import { PrivacyPolicyPage } from "./pages/PrivacyPolicyPage";
+import { MagicDemo } from "./pages/MagicDemo";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AuthRouter } from "./pages/AuthRouter";
 
 export function AppRouter() {
   const location = useLocation();
   const isAuthPage = location.pathname === "/login" || location.pathname === "/signup";
+  const isMagicDemo = location.pathname === "/demo";
 
-  // Auth pages should not have the main container padding
-  if (isAuthPage) {
+  // Magic demo and auth pages should not have the main container padding
+  if (isAuthPage || isMagicDemo) {
     return (
       <Routes>
         <Route path="/*" element={<AuthRouter />} />
+        <Route path="/demo" element={<MagicDemo />} />
       </Routes>
     );
   }
@@ -24,6 +27,7 @@ export function AppRouter() {
     <div className="h-full">
       <Routes>
         <Route path="/*" element={<AuthRouter />} />
+        <Route path="/demo" element={<MagicDemo />} />
         <Route
           path="/"
           element={

@@ -16,7 +16,8 @@ import {
   DeviceTabletIcon
 } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/utils';
-import logo from '@/assets/logo.svg';
+import logoBlack from '@/assets/logo_black.png';
+import logoWhite from '@/assets/logo_white.png';
 
 interface Project {
   id: string;
@@ -103,15 +104,15 @@ export const StudioDashboard: React.FC<StudioDashboardProps> = ({ className }) =
   ];
 
   return (
-    <div className={cn("space-y-8", className)}>
+    <div className={cn("space-y-8 max-w-3xl mx-auto", className)}>
       {/* Welcome Header */}
-      <div className="mx-auto grid max-w-5xl items-center gap-10 md:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
-        <div className="space-y-4 text-center md:text-left">
-          <div className="flex items-center justify-center gap-3 mb-2 md:justify-start">
-            <img src={logo} alt="Lemmi Studio" className="h-10 w-10 dark:invert transition-all duration-200" />
-            <h1 className="text-3xl md:text-4xl font-bold">Welcome to Lemmi Studio</h1>
+      <div className="text-center md:text-left">
+        <div className="space-y-4">
+          <div className="flex items-center justify-center mb-2 md:justify-start">
+            <img src={logoBlack} alt="Lemmi Studio" className="h-10 dark:hidden" />
+            <img src={logoWhite} alt="Lemmi Studio" className="h-10 hidden dark:block" />
           </div>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto md:mx-0">
+          <p className="text-lg text-muted-foreground">
             Create compelling App Store marketing content with AI-powered tools.
             Generate descriptions, optimize keywords, and design beautiful marketing images.
           </p>
@@ -124,41 +125,42 @@ export const StudioDashboard: React.FC<StudioDashboardProps> = ({ className }) =
             </Button>
           </div>
         </div>
-        <div className="relative flex justify-center md:justify-end">
-          <div className="relative w-full max-w-[420px] overflow-hidden rounded-3xl p-4 backdrop-blur">
-            <img
-              src="/control-panel-animate.svg"
-              alt="Animated analytics showcasing marketing insights"
-              className="h-auto w-full"
-            />
-          </div>
-        </div>
       </div>
 
 
       {/* Recent Projects Section */}
       {(isLoadingProjects || recentProjects.length > 0) ? (
-        <Card>
-          <CardHeader className="pb-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <ClockIcon className="h-5 w-5" />
-                  Recent Projects
-                </CardTitle>
-                <CardDescription>
-                  Pick up where you left off
-                </CardDescription>
+        <div className="relative">
+          {/* Illustration positioned above the card */}
+          {/* <div className="absolute right-8 -top-20 z-10 pointer-events-none">
+            <img
+              src="/list.svg"
+              alt="Figure standing on list"
+              className="h-24 w-auto"
+            />
+          </div> */}
+          
+          <Card>
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <ClockIcon className="h-5 w-5" />
+                    Recent Projects
+                  </CardTitle>
+                  <CardDescription>
+                    Pick up where you left off
+                  </CardDescription>
+                </div>
+                <Button variant="outline" asChild className="gap-2">
+                  <Link to="/history">
+                    View All Projects
+                    <ArrowRightIcon className="h-4 w-4" />
+                  </Link>
+                </Button>
               </div>
-              <Button variant="outline" asChild className="gap-2">
-                <Link to="/history">
-                  View All Projects
-                  <ArrowRightIcon className="h-4 w-4" />
-                </Link>
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
+            </CardHeader>
+            <CardContent className="p-0">
             <div className="space-y-0">
               {isLoadingProjects ? (
                 Array.from({ length: 4 }).map((_, i) => (
@@ -215,29 +217,40 @@ export const StudioDashboard: React.FC<StudioDashboardProps> = ({ className }) =
             </div>
           </CardContent>
         </Card>
+        </div>
       ) : (
         !isLoadingProjects && (
           /* Onboarding for New Users */
-          <Card>
-            <CardHeader className="text-center pb-4">
-              <CardTitle className="flex items-center justify-center gap-2">
-                <SparklesIcon className="h-5 w-5" />
+          <Card className="border-2 border-dashed border-muted-foreground/20">
+            <CardHeader className="text-center pb-6 pt-8">
+              <div className="mx-auto mb-4 w-16 h-16 bg-gradient-to-br from-primary/20 via-primary/10 to-transparent rounded-2xl flex items-center justify-center">
+                <SparklesIcon className="h-8 w-8 text-primary" />
+              </div>
+              <CardTitle className="text-2xl mb-2">
                 Quick Start Guide
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-base">
                 Create your first App Store marketing project in just a few steps
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <CardContent className="pb-8">
+              <div className="grid grid-cols-1 gap-6 mb-8">
                 {onboardingSteps.map((step, index) => (
-                  <div key={index} className="text-center space-y-3">
-                    <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto">
-                      <step.icon className="h-6 w-6 text-primary" />
+                  <div 
+                    key={index} 
+                    className="flex items-start gap-4 p-4 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors border border-muted"
+                  >
+                    <div className="flex-shrink-0 relative">
+                      <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center ring-4 ring-background">
+                        <step.icon className="h-6 w-6 text-primary" />
+                      </div>
+                      <div className="absolute -top-1 -right-1 w-6 h-6 bg-primary rounded-full flex items-center justify-center text-xs font-bold text-primary-foreground">
+                        {index + 1}
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-medium">{step.title}</h4>
-                      <p className="text-sm text-muted-foreground">
+                    <div className="flex-1 pt-0.5">
+                      <h4 className="font-semibold text-base mb-1">{step.title}</h4>
+                      <p className="text-sm text-muted-foreground leading-relaxed">
                         {step.description}
                       </p>
                     </div>
@@ -245,12 +258,15 @@ export const StudioDashboard: React.FC<StudioDashboardProps> = ({ className }) =
                 ))}
               </div>
               <div className="text-center">
-                <Button asChild size="lg" className="gap-2">
+                <Button asChild size="lg" className="gap-2 px-8 h-12 text-base shadow-lg shadow-primary/20">
                   <Link to="/new-project">
-                    <PlusIcon className="h-4 w-4" />
+                    <PlusIcon className="h-5 w-5" />
                     Start Your First Project
                   </Link>
                 </Button>
+                <p className="text-xs text-muted-foreground mt-4">
+                  No credit card required • Takes less than 5 minutes
+                </p>
               </div>
             </CardContent>
           </Card>

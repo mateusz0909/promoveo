@@ -137,6 +137,7 @@ interface DrawImageOptions {
   device?: string;
   accentColor?: string | null;
   theme: ImageThemeDefinition;
+  layout?: 'text-top' | 'text-bottom';
 }
 
 export const useImageEditor = (canvasRef: React.RefObject<HTMLCanvasElement | null>) => {
@@ -170,6 +171,7 @@ export const useImageEditor = (canvasRef: React.RefObject<HTMLCanvasElement | nu
       device = 'iPhone',
       accentColor: accentColorInput,
       theme,
+      layout = 'text-top',
     } = options;
 
     const resolvedHeadingColor = headingColorOverride ?? theme.headingColor;
@@ -290,30 +292,7 @@ export const useImageEditor = (canvasRef: React.RefObject<HTMLCanvasElement | nu
     let subheadingBounds: DOMRect | null = null;
     let mockupBounds: DOMRect | null = null;
 
-    // Heading
-    context.font = `bold ${headingFontSize}px "${headingFontFamily}"`;
-    context.fillStyle = resolvedHeadingColor;
-    context.textAlign = 'center';
-    const headingInitialY = 200;
-    const headingDrawX = (width / 2) + headingX;
-    const headingDrawY = headingInitialY + headingY;
-    const { lines: headingLines, bounds: hBounds } = wrapText(context, heading, headingDrawX, headingDrawY, width - 100, headingFontSize * 1.1);
-    headingLines.forEach(line => context.fillText(line.text, headingDrawX, line.y));
-    headingBounds = hBounds;
-
-    // Subheading
-    context.font = `${subheadingFontSize}px "${subheadingFontFamily}"`;
-  context.fillStyle = resolvedSubheadingColor;
-    context.textAlign = 'center';
-    // Decouple subheading Y position from heading
-    const subheadingInitialY = 400;
-    const subheadingDrawX = (width / 2) + subheadingX;
-    const subheadingDrawY = subheadingInitialY + subheadingY;
-    const { lines: subheadingLines, bounds: sBounds } = wrapText(context, subheading, subheadingDrawX, subheadingDrawY, width - 100, subheadingFontSize * 1.2);
-    subheadingLines.forEach(line => context.fillText(line.text, subheadingDrawX, line.y));
-    subheadingBounds = sBounds;
-
-    // Mockup
+    // Mockup preparation
     if (lastScreenshotUrl.current !== screenshotUrl || lastDevice.current !== device) {
       mockupCanvasCache.current = null; // Invalidate cache
       lastScreenshotUrl.current = screenshotUrl;
@@ -325,6 +304,7 @@ export const useImageEditor = (canvasRef: React.RefObject<HTMLCanvasElement | nu
     }
     const mockupCanvas = mockupCanvasCache.current;
 
+    // Calculate mockup dimensions
     const textHeight = 500;
     const remainingHeight = height - textHeight;
     const mockupAspectRatio = mockupCanvas.width / mockupCanvas.height;
@@ -336,34 +316,200 @@ export const useImageEditor = (canvasRef: React.RefObject<HTMLCanvasElement | nu
       mockupDrawHeight = mockupDrawWidth / mockupAspectRatio;
     }
 
-    const mockupInitialX = (width - mockupDrawWidth) / 2;
-    const mockupInitialY = textHeight + (remainingHeight - mockupDrawHeight) / 2;
+    // Layout-based positioning
+    let headingInitialY: number;
+    let subheadingInitialY: number;
+    let mockupInitialX: number;
+    let mockupInitialY: number;
+
+    if (layout === 'text-bottom') {
+      // Layout: Mockup at top, then heading, then subheading - DYNAMIC SPACING
+      const topPadding = 80;
+      const bottomPadding = 0;
+      
+      // Step 1: Calculate how many lines the text will take (rough estimation)
+      const maxTextWidth = width - 100;
+      
+      // Create temporary context to measure text
+      const tempCanvas = document.createElement('canvas');
+      const tempCtx = tempCanvas.getContext('2d');
+      if (tempCtx) {
+        // Measure heading lines
+        tempCtx.font = `bold ${headingFontSize}px "${headingFontFamily}"`;
+        const headingWords = heading.split(' ');
+        let headingLines = 1;
+        let currentLine = '';
+        for (const word of headingWords) {
+          const testLine = currentLine + word + ' ';
+          const metrics = tempCtx.measureText(testLine);
+          if (metrics.width > maxTextWidth && currentLine !== '') {
+            headingLines++;
+            currentLine = word + ' ';
+          } else {
+            currentLine = testLine;
+          }
+        }
+        
+        // Measure subheading lines
+        tempCtx.font = `${subheadingFontSize}px "${subheadingFontFamily}"`;
+        const subheadingWords = subheading.split(' ');
+        let subheadingLines = 1;
+        currentLine = '';
+        for (const word of subheadingWords) {
+          const testLine = currentLine + word + ' ';
+          const metrics = tempCtx.measureText(testLine);
+          if (metrics.width > maxTextWidth && currentLine !== '') {
+            subheadingLines++;
+            currentLine = word + ' ';
+          } else {
+            currentLine = testLine;
+          }
+        }
+        
+        // Step 2: Calculate actual text heights
+        const headingHeight = headingLines * headingFontSize * 1.1;
+        const subheadingHeight = subheadingLines * subheadingFontSize * 1.2;
+        const totalTextHeight = headingHeight + subheadingHeight;
+        
+        // Step 3: Size mockup to use 65% of canvas, leaving 35% for text + spacing
+        const mockupTargetHeight = height * 0.70;
+        let adjustedMockupHeight = Math.min(mockupDrawHeight, mockupTargetHeight);
+        let adjustedMockupWidth = adjustedMockupHeight * mockupAspectRatio;
+        
+        if (adjustedMockupWidth > width * 0.9) {
+          adjustedMockupWidth = width * 0.9;
+          adjustedMockupHeight = adjustedMockupWidth / mockupAspectRatio;
+        }
+        
+        // Update mockup dimensions
+        mockupDrawHeight = adjustedMockupHeight;
+        mockupDrawWidth = adjustedMockupWidth;
+        
+        // Step 4: Calculate available space below mockup
+        const spaceAfterMockup = height - topPadding - mockupDrawHeight - bottomPadding;
+        
+        // Step 5: Distribute space: gaps around text
+        const totalGapsNeeded = 2; // gap before heading, gap between heading/subheading
+        const gapSize = Math.max(30, (spaceAfterMockup - totalTextHeight) / totalGapsNeeded);
+        
+        mockupInitialX = (width - mockupDrawWidth) / 2;
+        mockupInitialY = topPadding;
+        headingInitialY = topPadding + mockupDrawHeight + gapSize;
+        subheadingInitialY = headingInitialY + headingHeight + (gapSize * 0.1); // Smaller gap between texts
+      } else {
+        // Fallback if context is not available
+        const mockupToTextGap = 120;
+        const headingToSubheadingGap = 30;
+        const estimatedHeadingHeight = headingFontSize * 2.5;
+        
+        const mockupTargetHeight = height * 0.65;
+        let adjustedMockupHeight = Math.min(mockupDrawHeight, mockupTargetHeight);
+        let adjustedMockupWidth = adjustedMockupHeight * mockupAspectRatio;
+        
+        if (adjustedMockupWidth > width * 0.9) {
+          adjustedMockupWidth = width * 0.9;
+          adjustedMockupHeight = adjustedMockupWidth / mockupAspectRatio;
+        }
+        
+        mockupDrawHeight = adjustedMockupHeight;
+        mockupDrawWidth = adjustedMockupWidth;
+        
+        mockupInitialX = (width - mockupDrawWidth) / 2;
+        mockupInitialY = topPadding;
+        headingInitialY = topPadding + mockupDrawHeight + mockupToTextGap;
+        subheadingInitialY = headingInitialY + estimatedHeadingHeight + headingToSubheadingGap;
+      }
+    } else {
+      // Layout: Text at top (heading, subheading), mockup below (default)
+      headingInitialY = 200;
+      subheadingInitialY = 400;
+      mockupInitialX = (width - mockupDrawWidth) / 2;
+      mockupInitialY = textHeight + (remainingHeight - mockupDrawHeight) / 2;
+    }
+
     const mockupDrawX = mockupInitialX + mockupX;
     const mockupDrawY = mockupInitialY + mockupY;
 
-    // Apply scale and rotation transformations
-    context.save();
-    
-    // Calculate the center point for rotation and scaling
+    // Draw in correct order based on layout
+    if (layout === 'text-bottom') {
+      // Draw mockup first
+      context.save();
+      const mockupCenterX = mockupDrawX + mockupDrawWidth / 2;
+      const mockupCenterY = mockupDrawY + mockupDrawHeight / 2;
+      context.translate(mockupCenterX, mockupCenterY);
+      context.rotate((mockupRotation * Math.PI) / 180);
+      context.scale(mockupScale, mockupScale);
+      context.translate(-mockupCenterX, -mockupCenterY);
+      context.drawImage(mockupCanvas, mockupDrawX, mockupDrawY, mockupDrawWidth, mockupDrawHeight);
+      context.restore();
+
+      const scaledWidth = mockupDrawWidth * mockupScale;
+      const scaledHeight = mockupDrawHeight * mockupScale;
+      const scaledX = mockupCenterX - scaledWidth / 2;
+      const scaledY = mockupCenterY - scaledHeight / 2;
+      mockupBounds = new DOMRect(scaledX, scaledY, scaledWidth, scaledHeight);
+
+      // Then draw text
+      context.font = `bold ${headingFontSize}px "${headingFontFamily}"`;
+      context.fillStyle = resolvedHeadingColor;
+      context.textAlign = 'center';
+      const headingDrawX = (width / 2) + headingX;
+      const headingDrawY = headingInitialY + headingY;
+      const { lines: headingLines, bounds: hBounds } = wrapText(context, heading, headingDrawX, headingDrawY, width - 100, headingFontSize * 1.1);
+      headingLines.forEach(line => context.fillText(line.text, headingDrawX, line.y));
+      headingBounds = hBounds;
+
+      context.font = `${subheadingFontSize}px "${subheadingFontFamily}"`;
+      context.fillStyle = resolvedSubheadingColor;
+      context.textAlign = 'center';
+      const subheadingDrawX = (width / 2) + subheadingX;
+      const subheadingDrawY = subheadingInitialY + subheadingY;
+      const { lines: subheadingLines, bounds: sBounds } = wrapText(context, subheading, subheadingDrawX, subheadingDrawY, width - 100, subheadingFontSize * 1.2);
+      subheadingLines.forEach(line => context.fillText(line.text, subheadingDrawX, line.y));
+      subheadingBounds = sBounds;
+    } else {
+      // Draw text first (default layout)
+      context.font = `bold ${headingFontSize}px "${headingFontFamily}"`;
+      context.fillStyle = resolvedHeadingColor;
+      context.textAlign = 'center';
+      const headingDrawX = (width / 2) + headingX;
+      const headingDrawY = headingInitialY + headingY;
+      const { lines: headingLines, bounds: hBounds } = wrapText(context, heading, headingDrawX, headingDrawY, width - 100, headingFontSize * 1.1);
+      headingLines.forEach(line => context.fillText(line.text, headingDrawX, line.y));
+      headingBounds = hBounds;
+
+      context.font = `${subheadingFontSize}px "${subheadingFontFamily}"`;
+      context.fillStyle = resolvedSubheadingColor;
+      context.textAlign = 'center';
+      const subheadingDrawX = (width / 2) + subheadingX;
+      const subheadingDrawY = subheadingInitialY + subheadingY;
+      const { lines: subheadingLines, bounds: sBounds } = wrapText(context, subheading, subheadingDrawX, subheadingDrawY, width - 100, subheadingFontSize * 1.2);
+      subheadingLines.forEach(line => context.fillText(line.text, subheadingDrawX, line.y));
+      subheadingBounds = sBounds;
+
+      // Then draw mockup
+      context.save();
+      const mockupCenterX = mockupDrawX + mockupDrawWidth / 2;
+      const mockupCenterY = mockupDrawY + mockupDrawHeight / 2;
+      context.translate(mockupCenterX, mockupCenterY);
+      context.rotate((mockupRotation * Math.PI) / 180);
+      context.scale(mockupScale, mockupScale);
+      context.translate(-mockupCenterX, -mockupCenterY);
+      context.drawImage(mockupCanvas, mockupDrawX, mockupDrawY, mockupDrawWidth, mockupDrawHeight);
+      context.restore();
+
+      const scaledWidth = mockupDrawWidth * mockupScale;
+      const scaledHeight = mockupDrawHeight * mockupScale;
+      const scaledX = mockupCenterX - scaledWidth / 2;
+      const scaledY = mockupCenterY - scaledHeight / 2;
+      mockupBounds = new DOMRect(scaledX, scaledY, scaledWidth, scaledHeight);
+    }
+
+    // Calculate mockup center for handle drawing (needs to be accessible outside the if blocks)
     const mockupCenterX = mockupDrawX + mockupDrawWidth / 2;
     const mockupCenterY = mockupDrawY + mockupDrawHeight / 2;
-    
-    // Translate to center, rotate, scale, then translate back
-    context.translate(mockupCenterX, mockupCenterY);
-    context.rotate((mockupRotation * Math.PI) / 180);
-    context.scale(mockupScale, mockupScale);
-    context.translate(-mockupCenterX, -mockupCenterY);
-    
-    context.drawImage(mockupCanvas, mockupDrawX, mockupDrawY, mockupDrawWidth, mockupDrawHeight);
-    
-    context.restore();
-    
-    // For bounds calculation, we need to account for scale
     const scaledWidth = mockupDrawWidth * mockupScale;
     const scaledHeight = mockupDrawHeight * mockupScale;
-    const scaledX = mockupCenterX - scaledWidth / 2;
-    const scaledY = mockupCenterY - scaledHeight / 2;
-    mockupBounds = new DOMRect(scaledX, scaledY, scaledWidth, scaledHeight);
 
     // --- Borders for Hover/Drag ---
     if (isHovering || isDragging) {

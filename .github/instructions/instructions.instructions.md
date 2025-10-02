@@ -164,6 +164,7 @@ model GeneratedImage {
 
 ## Validation & Quality
 - After modifying runnable code, run targeted checks (e.g., `npm run lint --workspace=client`, smoke the studio flow) before shipping.
-- Maintain the zero-test baseline consciously; if you add tests, wire them into existing npm scripts.
+- dont create summary documents unless explicitly requested.
+
 
 Stay aligned with this reference whenever you extend AppStoreFire. Keep the experience polished for indie developers relying on AI-assisted marketing.

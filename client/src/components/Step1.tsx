@@ -102,8 +102,8 @@ export const Step1 = ({
   }, []);
 
   return (
-    <div className="mx-auto max-w-6xl p-4 md:p-6">
-      <div className="grid gap-10 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-start">
+    <div className="mx-auto max-w-4xl p-4 md:p-6">
+
         <div className="order-2 grid gap-8 lg:order-1">
           <section className="space-y-4">
             <span className="inline-flex items-center rounded-full bg-primary/10 px-4 py-1 text-sm font-medium text-primary">
@@ -201,7 +201,7 @@ export const Step1 = ({
             </Button>
           </div>
         </div>
-
+{/* 
         <aside className="order-1 rounded-3xl  p-8  lg:order-2  lg:top-24">
           <div className="flex flex-col items-center text-center">
             <img
@@ -216,8 +216,8 @@ export const Step1 = ({
               </p>
             </div>
           </div>
-        </aside>
+        </aside> */}
       </div>
-    </div>
+    
   );
 };

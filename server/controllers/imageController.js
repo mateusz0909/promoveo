@@ -22,17 +22,15 @@ const imageController = {
       }
 
       console.log('regenerate-image: Generating new image');
-      const imageBuffer = await imageGenerationService.generateAppStoreImage(
+      const { imageBuffer } = await imageGenerationService.generateAppStoreImage(
         heading,
         subheading,
         screenshotPath,
-        device,
-        {
-          headingFont: font.headingFont || 'Farro',
-          subheadingFont: font.subheadingFont || 'Headland One',
-          headingFontSize: font.headingFontSize || 120,
-          subheadingFontSize: font.subheadingFontSize || 69,
-        }
+        font.headingFont || 'Farro',
+        font.subheadingFont || 'Headland One',
+        font.headingFontSize || 120,
+        font.subheadingFontSize || 69,
+        device || 'iPhone'
       );
 
   const timestamp = Date.now();
@@ -90,12 +88,18 @@ const imageController = {
       const screenshotBuffer = await response.arrayBuffer();
 
       // Generate new image with updated configuration
-      const newImageBuffer = await imageGenerationService.generateAppStoreImage(
+      const { imageBuffer: newImageBuffer } = await imageGenerationService.generateAppStoreImage(
         updatedConfig.heading,
         updatedConfig.subheading,
         Buffer.from(screenshotBuffer),
-        project.device,
-        updatedConfig.font
+        updatedConfig.headingFont || 'Farro',
+        updatedConfig.subheadingFont || 'Headland One',
+        updatedConfig.headingFontSize || 120,
+        updatedConfig.subheadingFontSize || 69,
+        project.device || 'iPhone',
+        {
+          layout: updatedConfig.layout || 'text-top'
+        }
       );
 
       console.log('update-image-config: Uploading new image to Supabase');
@@ -182,16 +186,35 @@ const imageController = {
 
     console.log('Received file:', file.originalname);
 
+    let tempFilePath = file.path;
+    let shouldCleanupTempFile = false;
+
     try {
+      if (!tempFilePath && file.buffer) {
+        await tmpService.ensureTmpDir();
+        const extension = path.extname(file.originalname || '') || '.png';
+        const tempFilename = `image-desc-${Date.now()}-${Math.round(Math.random() * 1e6)}${extension}`;
+        tempFilePath = tmpService.getTmpDirPath(tempFilename);
+        fs.writeFileSync(tempFilePath, file.buffer);
+        shouldCleanupTempFile = true;
+      }
+
+      if (!tempFilePath) {
+        console.error('generateImageDescription: Unable to determine file path for processing');
+        return res.status(500).json({ error: 'Unable to process image upload' });
+      }
+
       console.log('Generating image description with Gemini...');
-      const result = await imageDescriptionService.generateImageDescription(file.path);
+      const result = await imageDescriptionService.generateImageDescription(tempFilePath);
       console.log('Image description generated:', result.description);
       res.json(result);
     } catch (error) {
       console.error("Error in generateImageDescription:", error);
       res.status(500).json({ error: "Error generating image description" });
     } finally {
-      if (file?.path) {
+      if (shouldCleanupTempFile && tempFilePath) {
+        await tmpService.removeEntry(tempFilePath);
+      } else if (file?.path) {
         await tmpService.removeEntry(file.path);
       }
     }
@@ -214,10 +237,27 @@ const imageController = {
     console.log('Received file:', file.originalname);
     console.log('App context:', { appName, appDescription, currentHeading, currentSubheading, style });
 
+    let tempFilePath = file.path;
+    let shouldCleanupTempFile = false;
+
     try {
+      if (!tempFilePath && file.buffer) {
+        await tmpService.ensureTmpDir();
+        const extension = path.extname(file.originalname || '') || '.png';
+        const tempFilename = `image-caption-${Date.now()}-${Math.round(Math.random() * 1e6)}${extension}`;
+        tempFilePath = tmpService.getTmpDirPath(tempFilename);
+        fs.writeFileSync(tempFilePath, file.buffer);
+        shouldCleanupTempFile = true;
+      }
+
+      if (!tempFilePath) {
+        console.error('generateImageHeadingSubheading: Unable to determine file path for processing');
+        return res.status(500).json({ error: 'Unable to process image upload' });
+      }
+
       console.log('Generating heading and subheading with Gemini (style:', style, ')...');
       const result = await imageDescriptionService.generateImageHeadingSubheading(
-        file.path, 
+        tempFilePath, 
         appName, 
         appDescription,
         currentHeading,
@@ -230,7 +270,9 @@ const imageController = {
       console.error("Error in generateImageHeadingSubheading:", error);
       res.status(500).json({ error: "Error generating heading and subheading" });
     } finally {
-      if (file?.path) {
+      if (shouldCleanupTempFile && tempFilePath) {
+        await tmpService.removeEntry(tempFilePath);
+      } else if (file?.path) {
         await tmpService.removeEntry(file.path);
       }
     }
@@ -318,17 +360,15 @@ const imageController = {
         const screenshotBuffer = Buffer.from(response.data, 'binary');
 
         console.log(`Generating App Store image ${i + 1} for URL ${sourceScreenshotUrl}`);
-        const imageBuffer = await imageGenerationService.generateAppStoreImage(
+        const { imageBuffer } = await imageGenerationService.generateAppStoreImage(
           heading, 
           subheading, 
           screenshotBuffer, 
-          'iphone', // default device
-          {
-            headingFont: headingFontFamily,
-            subheadingFont: subheadingFontFamily,
-            headingFontSize,
-            subheadingFontSize,
-          }
+          headingFontFamily || 'Farro',
+          subheadingFontFamily || 'Headland One',
+          headingFontSize || 120,
+          subheadingFontSize || 69,
+          'iPhone'
         );
         
         // Replace the regenerated image in Supabase

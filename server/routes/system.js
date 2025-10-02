@@ -5,13 +5,8 @@ const path = require('path');
 
 const router = express.Router();
 
-// Root endpoint
-router.get('/', (req, res) => {
-  res.send('Hello from the server!');
-});
-
 // Health check endpoint
-router.get('/health-check', async (req, res) => {
+router.get('/', async (req, res) => {
   console.log('Attempting to connect with URL:', process.env.DATABASE_URL); 
   try {
     await prisma.$connect();

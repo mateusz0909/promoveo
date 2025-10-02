@@ -56,6 +56,7 @@ export const useImageEditorController = ({
   const [subheadingX, setSubheadingX] = useState(0);
   const [subheadingY, setSubheadingY] = useState(0);
   const [selectedTheme, setSelectedTheme] = useState<ImageEditorTheme>("accent");
+  const [layout, setLayout] = useState<'text-top' | 'text-bottom'>('text-top');
   const [isDragging, setIsDragging] = useState(false);
   const [dragTarget, setDragTarget] = useState<DraggableElement>(null);
   const [activeHandle, setActiveHandle] = useState<HandleType>(null);
@@ -95,6 +96,7 @@ export const useImageEditorController = ({
       setHeadingY(config.headingY || 0);
       setSubheadingX(config.subheadingX || 0);
       setSubheadingY(config.subheadingY || 0);
+      setLayout(config.layout || 'text-top');
 
       const configTheme = typeof config.theme === "string" ? config.theme : null;
       const normalizedTheme =
@@ -125,6 +127,7 @@ export const useImageEditorController = ({
     setDragTarget(null);
     setIsDragging(false);
     setSelectedTheme("accent");
+    setLayout('text-top');
   }, [isOpen]);
 
   const themeContext = useMemo(() => {
@@ -185,6 +188,7 @@ export const useImageEditorController = ({
         theme: themeDefinition,
         accentColor,
         device,
+        layout,
       });
 
       if (bounds) {
@@ -219,6 +223,7 @@ export const useImageEditorController = ({
     subheadingColor,
     accentColor,
     device,
+    layout,
   ]);
 
   const getElementAtPos = useCallback(
@@ -620,6 +625,7 @@ export const useImageEditorController = ({
       theme: themeDefinition,
       accentColor,
       device,
+      layout,
     });
 
     canvasRef.current.toBlob(async (blob) => {
@@ -652,6 +658,7 @@ export const useImageEditorController = ({
             : themeDefinition.background.type === "accent"
             ? accentColor
             : null,
+        layout,
       };
 
       const formData = new FormData();
@@ -696,6 +703,7 @@ export const useImageEditorController = ({
     headingY,
     imageData,
     imageIndex,
+    layout,
     mockupX,
     mockupY,
     onClose,
@@ -732,6 +740,8 @@ export const useImageEditorController = ({
     setMockupRotation,
     selectedTheme,
     setSelectedTheme,
+    layout,
+    setLayout,
     handleMouseDown,
     handleMouseMove,
     handleMouseUp,

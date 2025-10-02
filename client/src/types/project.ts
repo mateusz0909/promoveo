@@ -6,7 +6,14 @@ export type ImageEditorTheme =
   | "prism-burst"
   | "nightfall"
   | "lifestyle"
-  | "badge-punch";
+  | "badge-punch"
+  | "glass-morphism"
+  | "gradient-mesh"
+  | "minimal-pro"
+  | "tech-blueprint"
+  | "warm-sunset";
+
+export type ImageLayout = "text-top" | "text-bottom";
 
 export interface GeneratedImageConfiguration {
   heading?: string | null;
@@ -27,6 +34,7 @@ export interface GeneratedImageConfiguration {
   headingColor?: string | null;
   subheadingColor?: string | null;
   backgroundColor?: string | null;
+  layout?: ImageLayout | null;
 }
 
 export interface GeneratedImage {

@@ -59,6 +59,8 @@ export const ImageEditor = ({
     setSubheadingFontSize,
     selectedTheme,
     setSelectedTheme,
+    layout,
+    setLayout,
     handleMouseDown,
     handleMouseMove,
     handleMouseUp,
@@ -120,6 +122,8 @@ export const ImageEditor = ({
             onSubheadingFontSizeChange={setSubheadingFontSize}
             selectedTheme={selectedTheme}
             onThemeChange={handleThemeChange}
+            layout={layout}
+            onLayoutChange={setLayout}
             onRegenerateContent={handleRegenerateContent}
             isRegenerating={isRegenerating}
           />

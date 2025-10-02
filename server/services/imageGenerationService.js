@@ -213,8 +213,19 @@ function findFontFile(fontDir, family, weight) {
 }
 
 
-async function generateAppStoreImage(heading, subheading, screenshotBuffer, headingFontFamily = 'Farro', subheadingFontFamily = 'Headland One', headingFontSize = 120, subheadingFontSize = 80, device = 'iPhone') {
-  console.log(`ImageGenerationService: generating App Store image with fonts ${headingFontFamily}/${subheadingFontFamily} for ${device}`);
+async function generateAppStoreImage(
+  heading,
+  subheading,
+  screenshotBuffer,
+  headingFontFamily = 'Farro',
+  subheadingFontFamily = 'Headland One',
+  headingFontSize = 120,
+  subheadingFontSize = 80,
+  device = 'iPhone',
+  options = {}
+) {
+  const { addWatermark = false, theme = null, layout = 'text-top' } = options;
+  console.log(`ImageGenerationService: generating App Store image with fonts ${headingFontFamily}/${subheadingFontFamily} for ${device}${theme ? ` using theme ${theme.id}` : ''}`);
 
   // Font mapping - from display name to folder name
   const fontMapping = {
@@ -271,53 +282,273 @@ async function generateAppStoreImage(heading, subheading, screenshotBuffer, head
 
   const { accentColor } = await analyzeImageColors(screenshotBuffer);
 
-  const backgroundColor = lightenColor(accentColor, 80); // 80% lighter
-  const headingColor = '#1a1a1a'; // Almost black
+  // If a theme is provided, use theme colors; otherwise fall back to default behavior
+  let headingColor = '#1a1a1a'; // Almost black (default)
+  let subheadingColor = '#383838ff'; // Default gray
 
-  // background
-  const gradient = context.createLinearGradient(0, 0, 0, height);
-  gradient.addColorStop(0, backgroundColor);
-  gradient.addColorStop(1, '#f0f0f0'); // Almost white
+  if (theme) {
+    headingColor = theme.headingColor;
+    subheadingColor = theme.subheadingColor;
+  }
 
-  context.fillStyle = gradient;
+  // --- Apply Background ---
+  if (theme) {
+    switch (theme.background.type) {
+      case 'accent': {
+        const lightenPercent = theme.background.lightenBasePercent ?? 50;
+        const lightenedAccent = lightenColor(accentColor, lightenPercent);
+        const gradient = context.createLinearGradient(0, 0, 0, height);
+        gradient.addColorStop(0, lightenedAccent);
+        gradient.addColorStop(1, '#f0f0f0'); // Almost white
+        context.fillStyle = gradient;
+        break;
+      }
+      case 'solid': {
+        context.fillStyle = theme.background.color;
+        break;
+      }
+      case 'linear-gradient': {
+        const { colors, angle = 0 } = theme.background;
+        const radians = (angle % 360) * (Math.PI / 180);
+        const halfWidth = width / 2;
+        const halfHeight = height / 2;
+        const x = Math.cos(radians);
+        const y = Math.sin(radians);
+        const x0 = halfWidth - x * halfWidth;
+        const y0 = halfHeight - y * halfHeight;
+        const x1 = halfWidth + x * halfWidth;
+        const y1 = halfHeight + y * halfHeight;
+        const gradient = context.createLinearGradient(x0, y0, x1, y1);
+        const stopCount = colors.length;
+        colors.forEach((color, index) => {
+          const position = stopCount === 1 ? 1 : index / (stopCount - 1);
+          gradient.addColorStop(position, color);
+        });
+        context.fillStyle = gradient;
+        break;
+      }
+      case 'radial-gradient': {
+        const radius = Math.min(width, height) * (theme.background.radiusRatio ?? 0.65);
+        const centerX = width / 2;
+        const centerY = height * 0.35;
+        const radial = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+        radial.addColorStop(0, theme.background.innerColor);
+        radial.addColorStop(1, theme.background.outerColor);
+        context.fillStyle = radial;
+        break;
+      }
+    }
+  } else {
+    // Default gradient background (fallback when no theme)
+    const backgroundColor = lightenColor(accentColor, 80);
+    const gradient = context.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, backgroundColor);
+    gradient.addColorStop(1, '#f0f0f0');
+    context.fillStyle = gradient;
+  }
   context.fillRect(0, 0, width, height);
 
-  // Heading
-  context.font = `bold ${headingFontSize}px "${headingFontFamily}"`;
-  context.fillStyle = headingColor;
-  context.textAlign = 'center';
-  const headingY = wrapText(context, heading, width / 2, 200, width - 100, headingFontSize * 1.1);
+  // --- Apply Overlay (Spotlight) ---
+  if (theme && theme.overlay && theme.overlay.type === 'spotlight') {
+    const overlay = theme.overlay;
+    const radius = Math.min(width, height) * (overlay.radiusRatio ?? 0.6);
+    const centerX = width / 2;
+    const centerY = height * (overlay.yOffsetRatio ?? 0.35);
+    const spotlight = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+    spotlight.addColorStop(0, overlay.color);
+    spotlight.addColorStop(1, 'rgba(255,255,255,0)');
+    context.save();
+    context.globalAlpha = overlay.opacity ?? 0.3;
+    context.fillStyle = spotlight;
+    context.fillRect(0, 0, width, height);
+    context.restore();
+  }
 
-  // Subheading
-  context.font = `${subheadingFontSize}px "${subheadingFontFamily}"`;
-  context.fillStyle = '#383838ff';
-  context.textAlign = 'center';
-  wrapText(context, subheading, width / 2, headingY, width - 100, subheadingFontSize * 1.2);
+  // --- Apply Ribbon (Gradient Band) ---
+  if (theme && theme.ribbon) {
+    const { colors, heightRatio = 0.2, opacity = 0.25 } = theme.ribbon;
+    const ribbonHeight = height * heightRatio;
+    const startY = height * 0.55;
+    const gradient = context.createLinearGradient(0, startY, width, startY);
+    const stopCount = colors.length;
+    colors.forEach((color, index) => {
+      const position = stopCount === 1 ? 1 : index / (stopCount - 1);
+      gradient.addColorStop(position, color);
+    });
+    context.save();
+    context.globalAlpha = opacity;
+    context.fillStyle = gradient;
+    context.fillRect(0, startY, width, ribbonHeight);
+    context.restore();
+  }
 
-  // Mockup
+  // Mockup preparation
+  let mockupCanvas;
+  let mockupDrawWidth;
+  let mockupDrawHeight;
+  let mockupX;
+  let mockupY;
+
   try {
     console.log(`ImageGenerationService: generating mockup for screenshot from buffer`);
-    const mockupCanvas = await generateMockupImage(screenshotBuffer, device);
-    
-    const textHeight = 500; // Fixed height for the text area
-    const remainingHeight = height - textHeight;
+    mockupCanvas = await generateMockupImage(screenshotBuffer, device);
     
     const mockupAspectRatio = mockupCanvas.width / mockupCanvas.height;
-    let mockupDrawHeight = remainingHeight * 0.9; // Make it 90% of the available height
-    let mockupDrawWidth = mockupDrawHeight * mockupAspectRatio;
-
-    if (mockupDrawWidth > width * 0.9) { // Also reduce max width to have side margins
+    
+    // Calculate positions based on layout
+    if (layout === 'text-bottom') {
+      // Mockup at top, text below - DYNAMIC SPACING based on actual text
+      const topPadding = 80;
+      const bottomPadding = 0;
+      
+      // Step 1: Calculate how many lines the text will take
+      const maxTextWidth = width - 100;
+      
+      // Measure heading lines
+      context.font = `bold ${headingFontSize}px "${headingFontFamily}"`;
+      const headingWords = heading.split(' ');
+      let headingLines = 1;
+      let currentLine = '';
+      for (const word of headingWords) {
+        const testLine = currentLine + word + ' ';
+        const metrics = context.measureText(testLine);
+        if (metrics.width > maxTextWidth && currentLine !== '') {
+          headingLines++;
+          currentLine = word + ' ';
+        } else {
+          currentLine = testLine;
+        }
+      }
+      
+      // Measure subheading lines
+      context.font = `${subheadingFontSize}px "${subheadingFontFamily}"`;
+      const subheadingWords = subheading.split(' ');
+      let subheadingLines = 1;
+      currentLine = '';
+      for (const word of subheadingWords) {
+        const testLine = currentLine + word + ' ';
+        const metrics = context.measureText(testLine);
+        if (metrics.width > maxTextWidth && currentLine !== '') {
+          subheadingLines++;
+          currentLine = word + ' ';
+        } else {
+          currentLine = testLine;
+        }
+      }
+      
+      // Step 2: Calculate actual text heights
+      const headingHeight = headingLines * headingFontSize * 1.1;
+      const subheadingHeight = subheadingLines * subheadingFontSize * 1.2;
+      const totalTextHeight = headingHeight + subheadingHeight;
+      
+      // Step 3: Size mockup to use 70% of canvas
+      const mockupTargetHeight = height * 0.70;
+      mockupDrawHeight = Math.min(mockupCanvas.height, mockupTargetHeight);
+      mockupDrawWidth = mockupDrawHeight * mockupAspectRatio;
+      
+      if (mockupDrawWidth > width * 0.9) {
         mockupDrawWidth = width * 0.9;
         mockupDrawHeight = mockupDrawWidth / mockupAspectRatio;
+      }
+      
+      mockupX = (width - mockupDrawWidth) / 2;
+      mockupY = topPadding;
+      
+      // Store calculated values for text positioning later
+      context._textBottomLayout = {
+        spaceAfterMockup: height - topPadding - mockupDrawHeight - bottomPadding,
+        totalTextHeight,
+        headingHeight,
+        subheadingHeight,
+        mockupY,
+        mockupDrawHeight,
+        topPadding
+      };
+    } else {
+      // Default: text at top, mockup below
+      const textHeight = 500;
+      const remainingHeight = height - textHeight;
+      
+      mockupDrawHeight = remainingHeight * 0.9;
+      mockupDrawWidth = mockupDrawHeight * mockupAspectRatio;
+
+      if (mockupDrawWidth > width * 0.9) {
+        mockupDrawWidth = width * 0.9;
+        mockupDrawHeight = mockupDrawWidth / mockupAspectRatio;
+      }
+
+      mockupX = (width - mockupDrawWidth) / 2;
+      mockupY = textHeight + (remainingHeight - mockupDrawHeight) / 2;
     }
-
-    const x = (width - mockupDrawWidth) / 2;
-    const y = textHeight + (remainingHeight - mockupDrawHeight) / 2; // Center it vertically in the remaining space
-
-    console.log('ImageGenerationService: drawing mockup.');
-    context.drawImage(mockupCanvas, x, y, mockupDrawWidth, mockupDrawHeight);
   } catch (error) {
-    console.error('Error drawing mockup:', error);
+    console.error('Error preparing mockup:', error);
+  }
+
+  // Draw in correct order based on layout
+  if (layout === 'text-bottom' && mockupCanvas) {
+    // Draw mockup first (at top)
+    console.log('ImageGenerationService: drawing mockup (text-bottom layout).');
+    context.drawImage(mockupCanvas, mockupX, mockupY, mockupDrawWidth, mockupDrawHeight);
+
+    // Then draw text below mockup with dynamic spacing
+    const layoutData = context._textBottomLayout;
+    if (layoutData) {
+      const { spaceAfterMockup, totalTextHeight, headingHeight, mockupDrawHeight, topPadding } = layoutData;
+      
+      // Distribute space: gaps around text
+      const totalGapsNeeded = 2; // gap before heading, gap between heading/subheading
+      const gapSize = Math.max(30, (spaceAfterMockup - totalTextHeight) / totalGapsNeeded);
+      
+      const headingYPos = topPadding + mockupDrawHeight + gapSize;
+      
+      context.font = `bold ${headingFontSize}px "${headingFontFamily}"`;
+      context.fillStyle = headingColor;
+      context.textAlign = 'center';
+      const headingYEnd = wrapText(context, heading, width / 2, headingYPos, width - 100, headingFontSize * 1.1);
+
+      context.font = `${subheadingFontSize}px "${subheadingFontFamily}"`;
+      context.fillStyle = subheadingColor;
+      context.textAlign = 'center';
+      wrapText(context, subheading, width / 2, headingYEnd + (gapSize * 0.1), width - 100, subheadingFontSize * 1.2);
+      
+      // Clean up
+      delete context._textBottomLayout;
+    }
+  } else {
+    // Default layout: text first (at top), then mockup below
+    context.font = `bold ${headingFontSize}px "${headingFontFamily}"`;
+    context.fillStyle = headingColor;
+    context.textAlign = 'center';
+    const headingYEnd = wrapText(context, heading, width / 2, 200, width - 100, headingFontSize * 1.1);
+
+    context.font = `${subheadingFontSize}px "${subheadingFontFamily}"`;
+    context.fillStyle = subheadingColor;
+    context.textAlign = 'center';
+    wrapText(context, subheading, width / 2, headingYEnd, width - 100, subheadingFontSize * 1.2);
+
+    // Then draw mockup
+    if (mockupCanvas) {
+      console.log('ImageGenerationService: drawing mockup (text-top layout).');
+      context.drawImage(mockupCanvas, mockupX, mockupY, mockupDrawWidth, mockupDrawHeight);
+    }
+  }
+
+  // Watermark overlay for demo/previews
+  if (addWatermark) {
+    const watermarkText = 'DEMO PREVIEW · FULL QUALITY AFTER SIGNUP';
+    const watermarkSpacing = height / 4;
+    const watermarkAngle = (-18 * Math.PI) / 180;
+    context.save();
+    context.translate(width / 2, height / 2);
+    context.rotate(watermarkAngle);
+    context.fillStyle = 'rgba(255, 255, 255, 0.22)';
+    context.font = `600 ${Math.round(width * 0.04)}px sans-serif`;
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    for (let offset = -2; offset <= 2; offset++) {
+      context.fillText(watermarkText, 0, offset * watermarkSpacing);
+    }
+    context.restore();
   }
 
 

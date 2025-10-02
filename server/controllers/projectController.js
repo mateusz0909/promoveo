@@ -196,29 +196,41 @@ const projectController = {
     const { configuration } = req.body;
     const file = req.file;
 
+    console.log('updateProjectImage: Starting', { projectId, imageId, hasFile: !!file, hasConfig: !!configuration });
+
     if (!file) {
+      console.error('updateProjectImage: No file provided');
       return res.status(400).json({ error: 'Image file is required.' });
     }
 
     try {
-      const imageBuffer = fs.readFileSync(file.path);
+      // Multer is configured with memoryStorage, so file.buffer contains the image data
+      const imageBuffer = file.buffer;
+      console.log('updateProjectImage: File buffer received, size:', imageBuffer.length);
 
+      console.log('updateProjectImage: Finding image in database');
       const generatedImage = await prisma.generatedImage.findUnique({
         where: { id: imageId },
       });
 
       if (!generatedImage) {
+        console.error('updateProjectImage: Image not found in database');
         return res.status(404).json({ error: 'Image not found.' });
       }
+      console.log('updateProjectImage: Image found in database');
 
+      console.log('updateProjectImage: Uploading to Supabase');
       const { newImageUrl, oldImagePath } = await replaceImageInSupabase(
         generatedImage.generatedImageUrl,
         imageBuffer,
         file.mimetype
       );
+      console.log('updateProjectImage: Supabase upload successful', { newImageUrl });
 
       const parsedConfiguration = configuration ? JSON.parse(configuration) : generatedImage.configuration;
+      console.log('updateProjectImage: Configuration parsed');
 
+      console.log('updateProjectImage: Updating database');
       await prisma.generatedImage.update({
         where: { id: imageId },
         data: {
@@ -226,20 +238,22 @@ const projectController = {
           configuration: parsedConfiguration,
         },
       });
+      console.log('updateProjectImage: Database update successful');
 
       // Cleanup old version in background (non-blocking)
       setImmediate(() => {
         cleanupOldImageVersion(oldImagePath);
       });
 
-      fs.unlinkSync(file.path);
+      // No file cleanup needed with memoryStorage - buffer is automatically released
 
+      console.log('updateProjectImage: Complete, returning success');
       res.status(200).json({ imageUrl: newImageUrl });
     } catch (error) {
-      console.error('Error updating image:', error);
-      if (file && fs.existsSync(file.path)) {
-        fs.unlinkSync(file.path);
-      }
+      console.error('updateProjectImage: ERROR occurred');
+      console.error('Error type:', error.constructor.name);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
       res.status(500).json({ error: 'Failed to update image.' });
     }
   },
