@@ -4,7 +4,7 @@ const path = require('path');
 const { randomUUID } = require('crypto');
 
 const BASE_TMP_DIR = path.resolve(__dirname, '..', 'tmp');
-const DEFAULT_MAX_FILE_AGE_HOURS = Number(process.env.TMP_MAX_FILE_AGE_HOURS || 24);
+const DEFAULT_MAX_FILE_AGE_HOURS = Number(process.env.TMP_MAX_FILE_AGE_HOURS || 3);
 const DEFAULT_CLEANUP_INTERVAL_MINUTES = Number(process.env.TMP_CLEANUP_INTERVAL_MINUTES || 60);
 
 function toMilliseconds({ hours, minutes }) {
