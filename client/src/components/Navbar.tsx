@@ -1,5 +1,4 @@
 import { useAuth } from "../context/AuthContext";
-import { ModeToggle } from "./ModeToggle";
 import { UserMenu } from "./UserMenu";
 import { Button } from "./ui/button";
 import { Link } from "react-router-dom";
@@ -10,7 +9,7 @@ export function Navbar() {
   return (
     <header className="flex items-center justify-between px-4 py-2 border-b">
       <Link to="/" className="flex items-center gap-2">
-        <img src="/promeveo.svg" alt="Lemmi Studio Logo" className="h-8" />
+        <img src="/logo.svg" alt="Lemmi Studio Logo" className="h-8 w-8" />
         <h1 className="text-xl font-bold">Lemmi Studio</h1>
       </Link>
       <div className="flex items-center gap-4">

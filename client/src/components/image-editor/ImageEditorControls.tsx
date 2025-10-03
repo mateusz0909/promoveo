@@ -2,7 +2,6 @@ import type { ImageEditorTheme, ImageLayout } from "@/types/project";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { ThemeSelector } from "../ThemeSelector";
 import { SparklesIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
@@ -76,173 +75,171 @@ export const ImageEditorControls = ({
   };
 
   return (
-    <div className="col-span-4 h-full w-full flex flex-col overflow-y-auto space-y-3 p-3 rounded-md border">
-      <h3 className="text-xs font-semibold mb-1 uppercase tracking-wide">Controls</h3>
+    <div className="col-span-4 h-full w-full flex flex-col overflow-hidden p-3 rounded-md border">
+      <h3 className="text-xs font-semibold mb-2 uppercase tracking-wide">Controls</h3>
       
-      {/* Theme Section */}
-      <div className="space-y-1">
-        <Label className="text-xs">Theme</Label>
-        <ThemeSelector selectedTheme={selectedTheme} setSelectedTheme={onThemeChange} />
-      </div>
-
-      {/* Layout Section */}
-      <div className="space-y-1 pb-2 border-b">
-        <Label className="text-xs">Layout</Label>
-        <Select value={layout} onValueChange={onLayoutChange}>
-          <SelectTrigger className="h-9 text-xs">
-            <SelectValue placeholder="Select layout" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="text-top" className="text-xs">
-              Text on Top
-            </SelectItem>
-            <SelectItem value="text-bottom" className="text-xs">
-              Text on Bottom
-            </SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      
-      {/* AI Generation Section */}
-      {onRegenerateContent && (
-        <div className="space-y-1.5 pb-2 border-b">
-          <Label className="text-xs text-muted-foreground">AI Generation</Label>
-          <div className="grid grid-cols-2 gap-1.5">
-            <Button 
-              onClick={() => onRegenerateContent('concise')} 
-              disabled={isRegenerating}
-              variant="outline"
-              size="sm"
-              className="h-8 text-xs px-2"
-            >
-              <SparklesIcon className="h-3.5 w-3.5 mr-1" />
-              {isRegenerating ? "..." : "Concise"}
-            </Button>
-            <Button 
-              onClick={() => onRegenerateContent('detailed')} 
-              disabled={isRegenerating}
-              variant="outline"
-              size="sm"
-              className="h-8 text-xs px-2"
-            >
-              <ArrowPathIcon className="h-3.5 w-3.5 mr-1" />
-              {isRegenerating ? "..." : "Detailed"}
-            </Button>
-          </div>
+      {/* Top Controls Grid - Theme, Layout, AI */}
+      <div className="grid grid-cols-2 gap-2 pb-2 border-b mb-2">
+        {/* Theme */}
+        <div className="space-y-1">
+          <Label className="text-[10px] text-muted-foreground">Theme</Label>
+          <ThemeSelector selectedTheme={selectedTheme} setSelectedTheme={onThemeChange} />
         </div>
-      )}
-      
-      {/* Heading Section */}
-      <div className="space-y-2 pb-2 border-b">
-        <Label className="text-xs font-semibold">Heading</Label>
-        <div className="space-y-1.5">
-          <div>
-            <Label htmlFor="heading-text" className="text-xs text-muted-foreground">Text</Label>
-            <Textarea 
-              id="heading-text" 
-              value={heading} 
-              onChange={(e) => onHeadingChange(e.target.value)}
-              className="min-h-[60px] text-xs"
-            />
-          </div>
-          <div>
-            <Label htmlFor="heading-font" className="text-xs text-muted-foreground">Font</Label>
-            <Select value={headingFont} onValueChange={onHeadingFontChange}>
-              <SelectTrigger className="h-9 text-xs">
-                <SelectValue placeholder="Select font" />
-              </SelectTrigger>
-              <SelectContent>
-                {fonts.map((font) => (
-                  <SelectItem key={font} value={font} className="text-xs">
-                    {font}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="heading-font-size" className="text-xs text-muted-foreground">Size</Label>
-            <div className="flex gap-1.5">
-              <Input
-                id="heading-font-size"
-                type="number"
-                value={headingFontSize}
-                onChange={(e) => handleHeadingSize(e.target.value)}
-                className="h-9 text-xs"
-              />
-              <Select
-                value={PRESET_FONT_SIZES.includes(headingFontSize) ? headingFontSize.toString() : undefined}
-                onValueChange={handleHeadingSize}
+
+        {/* Layout */}
+        <div className="space-y-1">
+          <Label className="text-[10px] text-muted-foreground">Layout</Label>
+          <Select value={layout} onValueChange={onLayoutChange}>
+            <SelectTrigger className="h-9 text-xs">
+              <SelectValue placeholder="Select layout" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="text-top" className="text-xs">
+                Text on Top
+              </SelectItem>
+              <SelectItem value="text-bottom" className="text-xs">
+                Text on Bottom
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        
+        {/* AI Generation */}
+        {onRegenerateContent && (
+          <div className="col-span-2 space-y-1">
+            <Label className="text-[10px] text-muted-foreground">AI Generation</Label>
+            <div className="grid grid-cols-2 gap-1.5">
+              <Button 
+                onClick={() => onRegenerateContent('concise')} 
+                disabled={isRegenerating}
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs px-2"
               >
-                <SelectTrigger className="w-[100px] h-9 text-xs">
-                  <SelectValue placeholder="Preset" />
-                </SelectTrigger>
-                <SelectContent>
-                  {PRESET_FONT_SIZES.map((size) => (
-                    <SelectItem key={size} value={size.toString()} className="text-xs">
-                      {size}px
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <SparklesIcon className="h-3.5 w-3.5 mr-1" />
+                {isRegenerating ? "..." : "Concise"}
+              </Button>
+              <Button 
+                onClick={() => onRegenerateContent('detailed')} 
+                disabled={isRegenerating}
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs px-2"
+              >
+                <ArrowPathIcon className="h-3.5 w-3.5 mr-1" />
+                {isRegenerating ? "..." : "Detailed"}
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+      
+      {/* Scrollable Content Area */}
+      <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+        {/* Heading Section */}
+        <div className="space-y-1.5 pb-2 border-b">
+          <Label className="text-xs font-semibold">Heading</Label>
+          <div className="space-y-1.5">
+            <div>
+              <Label htmlFor="heading-text" className="text-[10px] text-muted-foreground">Text</Label>
+              <Textarea 
+                id="heading-text" 
+                value={heading} 
+                onChange={(e) => onHeadingChange(e.target.value)}
+                className="min-h-[50px] text-xs resize-none"
+                rows={2}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              <div>
+                <Label htmlFor="heading-font" className="text-[10px] text-muted-foreground">Font</Label>
+                <Select value={headingFont} onValueChange={onHeadingFontChange}>
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder="Font" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {fonts.map((font) => (
+                      <SelectItem key={font} value={font} className="text-xs">
+                        {font}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="heading-font-size" className="text-[10px] text-muted-foreground">Size</Label>
+                <Select
+                  value={headingFontSize.toString()}
+                  onValueChange={handleHeadingSize}
+                >
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue>
+                      {headingFontSize}px
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PRESET_FONT_SIZES.map((size) => (
+                      <SelectItem key={size} value={size.toString()} className="text-xs">
+                        {size}px
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-      
-      {/* Subheading Section */}
-      <div className="space-y-2">
-        <Label className="text-xs font-semibold">Subheading</Label>
+        
+        {/* Subheading Section */}
         <div className="space-y-1.5">
-          <div>
-            <Label htmlFor="subheading-text" className="text-xs text-muted-foreground">Text</Label>
-            <Textarea 
-              id="subheading-text" 
-              value={subheading} 
-              onChange={(e) => onSubheadingChange(e.target.value)}
-              className="min-h-[60px] text-xs"
-            />
-          </div>
-          <div>
-            <Label htmlFor="subheading-font" className="text-xs text-muted-foreground">Font</Label>
-            <Select value={subheadingFont} onValueChange={onSubheadingFontChange}>
-              <SelectTrigger className="h-9 text-xs">
-                <SelectValue placeholder="Select font" />
-              </SelectTrigger>
-              <SelectContent>
-                {fonts.map((font) => (
-                  <SelectItem key={font} value={font} className="text-xs">
-                    {font}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="subheading-font-size" className="text-xs text-muted-foreground">Size</Label>
-            <div className="flex gap-1.5">
-              <Input
-                id="subheading-font-size"
-                type="number"
-                value={subheadingFontSize}
-                onChange={(e) => handleSubheadingSize(e.target.value)}
-                className="h-9 text-xs"
+          <Label className="text-xs font-semibold">Subheading</Label>
+          <div className="space-y-1.5">
+            <div>
+              <Label htmlFor="subheading-text" className="text-[10px] text-muted-foreground">Text</Label>
+              <Textarea 
+                id="subheading-text" 
+                value={subheading} 
+                onChange={(e) => onSubheadingChange(e.target.value)}
+                className="min-h-[50px] text-xs resize-none"
+                rows={2}
               />
-              <Select
-                value={PRESET_FONT_SIZES.includes(subheadingFontSize) ? subheadingFontSize.toString() : undefined}
-                onValueChange={handleSubheadingSize}
-              >
-                <SelectTrigger className="w-[100px] h-9 text-xs">
-                  <SelectValue placeholder="Preset" />
-                </SelectTrigger>
-                <SelectContent>
-                  {PRESET_FONT_SIZES.map((size) => (
-                    <SelectItem key={size} value={size.toString()} className="text-xs">
-                      {size}px
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              <div>
+                <Label htmlFor="subheading-font" className="text-[10px] text-muted-foreground">Font</Label>
+                <Select value={subheadingFont} onValueChange={onSubheadingFontChange}>
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder="Font" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {fonts.map((font) => (
+                      <SelectItem key={font} value={font} className="text-xs">
+                        {font}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="subheading-font-size" className="text-[10px] text-muted-foreground">Size</Label>
+                <Select
+                  value={subheadingFontSize.toString()}
+                  onValueChange={handleSubheadingSize}
+                >
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue>
+                      {subheadingFontSize}px
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PRESET_FONT_SIZES.map((size) => (
+                      <SelectItem key={size} value={size.toString()} className="text-xs">
+                        {size}px
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
         </div>

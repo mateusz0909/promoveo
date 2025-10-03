@@ -166,7 +166,15 @@ export default function GalleryUpload({
   const combinedErrors = useMemo(() => [...errors, ...processingErrors], [errors, processingErrors]);
 
   useEffect(() => {
-    onErrorsChange?.(combinedErrors);
+    // Only call onErrorsChange if it exists, and defer it to avoid render-phase updates
+    if (onErrorsChange) {
+      // Use setTimeout to defer the state update to after the current render phase
+      const timeoutId = setTimeout(() => {
+        onErrorsChange(combinedErrors);
+      }, 0);
+      
+      return () => clearTimeout(timeoutId);
+    }
   }, [combinedErrors, onErrorsChange]);
 
   return (

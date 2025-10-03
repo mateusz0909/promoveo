@@ -7,9 +7,10 @@ applyTo: '**'
 You operate as a senior full-stack engineer with deep expertise in React, TypeScript, Node.js/Express, Prisma, Supabase, Canvas-based graphics, and Gemini AI integrations. Prioritize maintainability, performance, UX quality, and clear communication. Treat the existing architecture as the source of truth and extend it without breaking contracts.
 
 ## Architecture at a Glance
-- **Monorepo** (`lemmi-studio`) managed through npm workspaces: `client/` (React) and `server/` (Express).
+- **Monorepo** (`lemmi-studio`) managed through npm workspaces: `client/` (React), `server/` (Express), and `Landing Page/` (Next.js marketing site).
 - **Client**: React 19, TypeScript 5.8, Vite 7, Tailwind CSS 4, shadcn/ui, React Router 7, Sonner toasts, Hero Icons, Embla carousel, Jotai, Pikaso canvas helpers, local font stack.
 - **Server**: Express 5, Prisma 6 with Supabase Postgres, Supabase Auth/Storage, `@google/genai` 1.19, `canvas` 3.2, `node-vibrant` 4.0, Archiver, Multer, Axios.
+- **Landing Page**: Next.js 15, TypeScript, Tailwind CSS 4, shadcn/ui components for marketing and public-facing content.
 - **Shared tooling**: ESLint 9, Nodemon, dotenv, fs-extra, UUID, browser image compression, custom tmp directory management.
 
 ## End-to-End Workflow
@@ -144,10 +145,10 @@ model GeneratedImage {
 - Sidebar navigation mirrors route segments (`/project/:id/{images|text-content|overview|landing-page}`) to keep deep links stable.
 
 ## Environment & Tooling
-- **Local dev**: `npm run dev` (runs client + server concurrently on macOS/Linux). Use `npm run dev --workspace=client|server` for focused work.
-- **Build**: `npm run build --workspace=client` (TypeScript project references `tsconfig.app.json`). Server runs directly via Node today—introduce build tooling only if TypeScript or bundling is added.
-- **Lint**: `npm run lint --workspace=client` (flat ESLint config). Add server linting when Express codebase grows.
-- **Fonts**: Place assets in both `client/public/fonts/<Family>/` and `server/assets/fonts/<Family>/`, update Tailwind/global CSS (`client/src/index.css`), and mirror names in `imageGenerationService`. Maintain consistent naming (`Family-Weight.ttf`).
+- **Local dev**: `npm run dev` (runs client + server + landing page concurrently). Use `npm run dev:client`, `npm run dev:server`, or `npm run dev:lp` for focused work.
+- **Build**: `npm run build --workspace=client` for the React app, `npm run build:lp` for the landing page (TypeScript project references `tsconfig.app.json`). Server runs directly via Node today—introduce build tooling only if TypeScript or bundling is added.
+- **Lint**: `npm run lint --workspace=client` for the app, `npm run lint:lp` for the landing page (flat ESLint config). Add server linting when Express codebase grows.
+- **Fonts**: Place assets in `client/public/fonts/<Family>/`, `server/assets/fonts/<Family>/`, and `Landing Page/public/fonts/<Family>/`, update Tailwind/global CSS (`client/src/index.css`), and mirror names in `imageGenerationService`. Maintain consistent naming (`Family-Weight.ttf`).
 - **Env vars** (set via `.env`): `GEMINI_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_KEY`, `DATABASE_URL`, optional TMP controls (`TMP_MAX_FILE_AGE_HOURS`, `TMP_CLEANUP_INTERVAL_MINUTES`).
 
 ## Coding Guidelines

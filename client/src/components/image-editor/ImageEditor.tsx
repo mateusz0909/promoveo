@@ -89,7 +89,7 @@ export const ImageEditor = ({
   };
 
   return (
-    <Dialog modal={false} open={isOpen} onOpenChange={onClose}>
+    <Dialog modal={true} open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-5xl h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Image Editor</DialogTitle>

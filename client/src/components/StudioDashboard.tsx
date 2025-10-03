@@ -16,8 +16,8 @@ import {
   DeviceTabletIcon
 } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/utils';
-import logoBlack from '@/assets/logo_black.png';
-import logoWhite from '@/assets/logo_white.png';
+import logoBlack from '@/assets/logo_icon_black.png';
+import logoWhite from '@/assets/logo_icon_white.png';
 
 interface Project {
   id: string;

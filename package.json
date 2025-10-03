@@ -3,16 +3,25 @@
   "private": true,
   "workspaces": [
     "client",
-    "server"
+    "server",
+    "Landing Page"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace=client & npm run dev --workspace=server",
-    "start": "npm start --workspace=server"
+    "dev": "concurrently \"npm run dev --workspace=client\" \"npm run dev --workspace=server\" \"npm run dev --workspace=Landing\\ Page\" --names \"CLIENT,SERVER,LP\" --prefix-colors \"cyan,green,magenta\"",
+    "dev:client": "npm run dev --workspace=client",
+    "dev:server": "npm run dev --workspace=server",
+    "dev:lp": "npm run dev --workspace=Landing\\ Page",
+    "build": "npm run build --workspace=client",
+    "build:lp": "npm run build --workspace=Landing\\ Page",
+    "lint": "npm run lint --workspace=client",
+    "lint:lp": "npm run lint --workspace=Landing\\ Page",
+    "preview": "npm run preview --workspace=client"
   },
   "dependencies": {
     "archiver": "^7.0.1"
   },
   "devDependencies": {
+    "concurrently": "^9.1.2",
     "supabase": "^2.40.7"
   }
 }

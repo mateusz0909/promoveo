@@ -1,119 +1,105 @@
-<!-- SECTION: page_metadata -->
-<!-- title: Lemmi Studio - From Code to 'Ready for Sale' -->
-<!-- description: You built the app. Let AI handle the launch. Go from final code to App Store-ready with an AI-powered go-live kit that creates your screenshots, copy, and landing page in minutes. -->
-<!-- language: en -->
 
-<!-- ====================================================================== -->
+### **Sekcja po Sekcji: Nowa Treść i Układ (w języku angielskim)**
 
-<!-- SECTION: hero -->
-<!-- type: hero_section -->
-<!-- visual_suggestion: Dynamic animation showing a raw screenshot being transformed into a polished, App Store-ready image. -->
+#### **Section 1: The Hero - The Magic Box**
 
-# Stop Engineering, Start Shipping.
+*   **Cel:** Zaszokować użytkownika natychmiastową wartością. Zero czytania, czysta akcja.
+*   **Układ:**
+    *   **Headline (H1):** `Go from Screenshot to App Store-Ready in 60 Seconds.` (Idź od zrzutu ekranu do gotowości na App Store w 60 sekund.)
+    *   **Sub-headline (H2):** `Tired of the final mile? Stop designing marketing assets and let AI do the heavy lifting. Upload a screenshot and see the magic.` (Zmęczony ostatnim kilometrem? Przestań projektować zasoby marketingowe i pozwól AI wykonać ciężką pracę. Wrzuć zrzut ekranu i zobacz magię.)
+    *   **Główny element:** **TWOJA INTERAKTYWNA KOMPONENT DEMO.** To musi być centralny punkt. Duży, wyraźny obszar `Drag & Drop Your Screenshot Here` lub przycisk `Upload Screenshot`. Po załadowaniu, natychmiast, bez przeładowania strony, pokazujesz 3 wygenerowane koncepty.
+    *   **CTA Button (pod demem):** `Start Your First Project Free`
 
-You built the app. Let AI handle the launch. Go from final code to "Ready for Sale" with an AI-powered go-live kit that creates your App Store screenshots, copy, and landing page in minutes.
+#### **Section 2: The Pain You Know Too Well (Agitation)**
 
-**[CTA Primary: Start Your First Project Free]**
-`action: navigate_to_signup`
+*   **Cel:** Sprawić, by użytkownik skinął głową i pomyślał "Cholera, to o mnie".
+*   **Układ:** Prosta, trzykolumnowa sekcja z ikonami.
+*   **Headline (H2):** `The Finish Line That Isn’t.` (Meta, która nie jest metą.)
+*   **Kolumna 1:**
+    *   **Nagłówek:** `Figma Hell` (Piekło Figmy)
+    *   **Tekst:** `Spending hours framing screenshots, tweaking text, and wrestling with design tools you hate.` (Spędzanie godzin na ramkowaniu zrzutów ekranu, poprawianiu tekstu i zmaganiach z narzędziami do projektowania, których nienawidzisz.)
+*   **Kolumna 2:**
+    *   **Nagłówek:** `Copywriter's Block` (Blokada copywritera)
+    *   **Tekst:** `Staring at App Store fields with character limits, trying to sound professional without any marketing experience.` (Wpatrywanie się w pola App Store z limitami znaków, próbując brzmieć profesjonalnie bez żadnego doświadczenia w marketingu.)
+*   **Kolumna 3:**
+    *   **Nagłówek:** `The Launch That Stalls` (Launch, który utknął)
+    *   **Tekst:** `Your finished app gathers dust while your launch momentum bleeds out. All because of marketing chores.` (Twoja ukończona aplikacja zbiera kurz, podczas gdy pęd związany z jej uruchomieniem wyczerpuje się. Wszystko z powodu marketingowych obowiązków.)
 
-**[CTA Secondary: Watch 2-Min Demo]**
-`action: scroll_to_demo_video`
+#### **Section 3: The "Lemmi" Way - Your 3-Step Launchpad (The Bridge)**
 
-<!-- ====================================================================== -->
+*   **Cel:** Pokazać, jak absurdalnie prosty jest proces z twoim narzędziem.
+*   **Układ:** Prosta, numerowana lista (1, 2, 3) z krótkimi opisami i uproszczonymi grafikami/GIF-ami pokazującymi interfejs w akcji.
+*   **Headline (H2):** `From Upload to Launch in Three Steps.` (Od uploadu do launchu w trzech krokach.)
+*   **Krok 1:**
+    *   **Nagłówek:** `Upload Your Build.` (Wrzuć swój build.)
+    *   **Tekst:** `Drag and drop up to 10 raw screenshots. We handle the rest.` (Przeciągnij i upuść do 10 surowych zrzutów ekranu. My zajmiemy się resztą.)
+*   **Krok 2:**
+    *   **Nagłówek:** `Generate & Refine.` (Generuj i dopracuj.)
+    *   **Tekst:** `Our AI instantly creates stunning marketing images, App Store copy, and a full landing page. Tweak anything you want in our visual editor.` (Nasze AI natychmiast tworzy oszałamiające obrazy marketingowe, teksty do App Store i pełną stronę docelową. Dostosuj co tylko chcesz w naszym edytorze wizualnym.)
+*   **Krok 3:**
+    *   **Nagłówek:** `Export & Ship.` (Eksportuj i wysyłaj.)
+    *   **Tekst:** `Download a single ZIP file with all your approved, App Store-compliant assets. Your launch is ready.` (Pobierz jeden plik ZIP ze wszystkimi zatwierdzonymi, zgodnymi z App Store zasobami. Twój launch jest gotowy.)
 
-<!-- SECTION: problem -->
-<!-- type: problem_statement_section -->
-<!-- visual_suggestion: A diagram or illustration showing a developer sprinting through coding, then hitting a wall labeled "Marketing Assets". -->
+#### **Section 4: See The Transformation (Visual Proof)**
 
-## The Finish Line That Isn't.
+*   **Cel:** Wizualne uderzenie "przed i po". Najmocniejszy dowód.
+*   **Układ:** Duży, interaktywny suwak "Before/After" lub dwie kolumny obok siebie.
+*   **Headline (H2):** `Don't Just Ship. Ship Professionally.` (Nie tylko wysyłaj. Wysyłaj profesjonalnie.)
+*   **Lewa strona ("Before"):** Surowy, nieoprawiony screenshot. Podpis: `Your Raw Screenshot`.
+*   **Prawa strona ("After"):** Piękny, wygenerowany przez Lemmi obraz marketingowy z ramką urządzenia, chwytliwym nagłówkiem i idealnym tłem. Podpis: `Your App Store Presence`.
 
-You’ve poured months into crafting the perfect app. The code is clean, the features are solid. You're ready. But then comes the final, brutal mile:
-- **Endless Screenshots:** Framing, annotating, and styling dozens of images.
-- **The Copywriting Black Hole:** Agonizing over titles, descriptions, and keywords that Apple won’t reject.
-- **The "One More Thing" Landing Page:** A final hurdle you don't have the energy or tools to build.
+#### **Section 5: More Than Just Screenshots (Features as Benefits)**
 
-Momentum dies. Your launch stalls. The world never sees your work.
+*   **Cel:** Przedstawić kluczowe funkcje, ale zawsze w kontekście korzyści.
+*   **Układ:** Seria naprzemiennych bloków (obraz po lewej, tekst po prawej, potem odwrotnie).
+*   **Headline (H2):** `Your Complete Go-Live Kit.` (Twój kompletny zestaw startowy.)
+*   **Blok 1: AI-Powered Marketing Images**
+    *   **Nagłówek korzyści:** `Become a Designer in Clicks, Not Years.` (Zostań projektantem w kilka kliknięć, a nie lat.)
+    *   **Tekst:** `Generate dozens of unique, professional marketing shots with themes, fonts, and layouts that convert. No design skills required.` (Generuj dziesiątki unikalnych, profesjonalnych ujęć marketingowych z motywami, czcionkami i układami, które konwertują. Nie są wymagane żadne umiejętności projektowe.)
+*   **Blok 2: ASO Copy That Converts**
+    *   **Nagłówek korzyści:** `Write Perfect App Store Copy, Instantly.` (Pisz idealne teksty do App Store, natychmiast.)
+    *   **Tekst:** `From titles to descriptions, our AI writes compelling, compliant copy in multiple languages. Beat the character limits and get discovered.` (Od tytułów po opisy, nasze AI pisze przekonujące, zgodne z wytycznymi teksty w wielu językach. Pokonaj limity znaków i daj się odkryć.)
+*   **Blok 3: One-Click Landing Page**
+    *   **Nagłówek korzyści:** `Launch a Marketing Site Before Your Coffee Gets Cold.` (Uruchom stronę marketingową, zanim wystygnie Ci kawa.)
+    *   **Tekst:** `Get a complete, deploy-ready landing page with your new assets, logo, and links, bundled in a clean HTML/CSS package.` (Otrzymaj kompletną, gotową do wdrożenia stronę docelową z nowymi zasobami, logo i linkami, spakowaną w czysty pakiet HTML/CSS.)
 
-<!-- ====================================================================== -->
+#### **Section 6: Built for Builders (Social Proof)**
 
-<!-- SECTION: solution -->
-<!-- type: solution_pillars_section -->
-<!-- visual_suggestion: A three-panel feature carousel, each panel showing the UI for the corresponding pillar. -->
+*   **Cel:** Zbudować zaufanie i pokazać, że to narzędzie jest dla "ludzi takich jak ja".
+*   **Układ:** Prosta sekcja z logotypami i cytatami.
+*   **Headline (H2):** `Trusted by Indie Devs & Small Studios Worldwide.` (Zaufali nam niezależni deweloperzy i małe studia na całym świecie.)
+*   **Testimonials:** Użyj tych, które masz, ale przepisz je, by były bardziej konkretne.
+    *   **Źle:** "Lemmi is great, it saved me a lot of time."
+    *   **Dobrze:** "I went from dreading the App Store submission process to being excited about it. What used to take me a week of painful design work, I now do in an afternoon. Lemmi Studio is a solo dev's secret weapon." – *Emily Rodriguez, Creator of [App Name]*
+*   Jeśli nie masz prawdziwych, napisz aspiracyjne i oznacz je jako "przykład". Bądź transparentny.
 
-## Reclaim Your Momentum.
+#### **Section 7: Simple, Transparent Pricing (The Offer)**
 
-**Lemmi Studio** is your AI co-pilot for the final mile. We automate the tedious, soul-crushing tasks of launching, turning days of design and copywriting into a guided, 15-minute workflow.
+*   **Cel:** Przedstawić cenę jako oczywistą inwestycję.
+*   **Układ:** Twoja obecna, trzykolumnowa struktura cenowa jest OK. Musimy poprawić treść.
+*   **Headline (H2):** `An Investment in Your Launch.` (Inwestycja w Twój launch.)
+*   **Sub-headline:** `Cheaper than a freelancer. Faster than a design agency.` (Taniej niż freelancer. Szybciej niż agencja projektowa.)
+*   **Podkreśl plan "Pro"** jako "Most Popular".
+*   **Pod każdym planem dodaj tekst:** "Pays for itself with a single project." (Zwraca się przy jednym projekcie.)
 
-### AI-Perfected Store Visuals
-Feed us your raw screenshots. Get back persuasive, on-brand App Store images with AI-generated headlines and perfectly framed devices. Fine-tune anything in our canvas editor.
+#### **Section 8: Your Questions, Answered (Objection Handling)**
 
-### Conversion-Ready ASO Copy
-Generate the entire App Store text package—titles, subtitles, keywords, and descriptions—optimized for discovery and compliance. No more guesswork.
+*   **Cel:** Proaktywnie zniszczyć wątpliwości, zanim powstrzymają użytkownika przed konwersją.
+*   **Układ:** Prosty akordeon (rozwijana lista).
+*   **Headline (H2):** `No More Excuses.` (Koniec z wymówkami.)
+*   **Pytania, na które musisz odpowiedzieć:**
+    *   `Do I own the assets I create?` (Absolutnie. 100% twoje.)
+    *   `Is this compliant with Apple's guidelines?` (Tak. Zbudowaliśmy to z myślą o ich zasadach.)
+    *   `What if I don't have design skills?` (To narzędzie jest dla ciebie. Zero doświadczenia wymagane.)
+    *   `What about Android / Google Play?` (Wkrótce. Zapisz się, a poinformujemy cię jako pierwszego.)
+    *   `Can I cancel anytime?` (Tak. Bez pytań.)
 
-### Landing Pages in Minutes
-Connect your App Store ID, pick a hero image, and watch as Lemmi Studio drafts a complete, downloadable landing page. Your launchpad, built instantly.
+#### **Section 9: Don't Let Your App Die in a Folder (Final CTA)**
 
-**[CTA Primary: Create Your Launch Assets Now]**
-`action: navigate_to_signup`
+*   **Cel:** Ostatnie, mocne uderzenie emocjonalne i wezwanie do działania.
+*   **Układ:** Duży, wyśrodkowany tekst i przycisk.
+*   **Headline (H1 lub H2):** `Your Next Launch Doesn't Have to Stall.` (Twój następny launch nie musi utknąć.)
+*   **Text:** `You've done the hard work of building. Let us handle the final, frustrating mile. Turn your screenshots into a professional launch package today.` (Wykonałeś ciężką pracę budowania. Pozwól nam zająć się ostatnim, frustrującym kilometrem. Zamień swoje zrzuty ekranu w profesjonalny pakiet startowy już dziś.)
+*   **Final CTA Button:** `Start Building Your Launch Kit – Free`
 
-<!-- ====================================================================== -->
-
-<!-- SECTION: how_it_works -->
-<!-- type: step_by_step_section -->
-<!-- visual_suggestion: A simple 1-2-3-4 step infographic. -->
-
-## From Upload to Launch in Four Steps.
-
-**1. Upload Your Build**
-Provide your app name and upload up to 10 raw screenshots. Our system validates and compresses them for you.
-
-**2. Let AI Do the Heavy Lifting**
-Our AI analyzes your visuals and generates compelling descriptions, headlines, and a full ASO copy package.
-
-**3. Fine-Tune in the Studio**
-Review and refine. Adjust layouts in the visual canvas, regenerate copy, or configure your landing page settings.
-
-**4. Export Your Go-Live Kit**
-Download a single, organized ZIP file with every asset you need: App Store visuals, text content, and a ready-to-deploy landing page.
-
-<!-- ====================================================================== -->
-
-<!-- SECTION: demo_video -->
-<!-- type: embedded_video_section -->
-<!-- visual_suggestion: Embedded video (silent, autoplay, loop) showing the key UI workflow. -->
-
-## See the Magic in Action.
-
-From a raw screenshot to an App Store-ready graphic in 90 seconds.
-
-*(Here, embed the video from `https://path.to/your/demo_video.mp4`)*
-
-**[CTA Primary: Try It Yourself ]**
-`action: navigate_to_demo`
-
-<!-- ====================================================================== -->
-
-<!-- SECTION: social_proof -->
-<!-- type: testimonials_section -->
-
-## Don't Just Build. Launch.
-
-> "Lemmi Studio took the part I hate most about launching and made it the easiest. I saved at least two full days of design work. Shipped my app a week ahead of schedule."
-> **– Alex, Founder of [App Name]**
-
-> "The landing page generator is a game-changer. I had a professional, responsive site in less time than it takes to make coffee. Unbelievable."
-> **– Sarah, Indie Developer**
-
-<!-- ====================================================================== -->
-
-<!-- SECTION: final_cta -->
-<!-- type: final_cta_section -->
-
-# Your Next Launch Doesn't Have to Stall.
-
-Stop letting asset creation derail your success. Finish strong. Launch faster. Get your product into the hands of users.
-
-**[CTA Primary: Get Started for Free]**
-`action: navigate_to_signup`
-
-<!-- ====================================================================== -->
+---

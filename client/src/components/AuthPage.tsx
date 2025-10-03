@@ -9,8 +9,8 @@ import {
 import { Loader2 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useState } from "react";
-import logoBlack from '@/assets/logo_black.png';
-import logoWhite from '@/assets/logo_white.png';
+import logoBlack from '@/assets/logo_icon_black.png';
+import logoWhite from '@/assets/logo_icon_white.png';
 
 export function AuthPage({ type }: { type: "login" | "signup" }) {
   const [loadingProvider, setLoadingProvider] = useState<"google" | "github" | "apple" | null>(null);

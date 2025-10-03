@@ -4,6 +4,53 @@ console.log('Initializing Gemini service...');
 
 const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
 
+// Retry configuration
+const RETRY_CONFIG = {
+  maxRetries: 3,
+  initialDelayMs: 1000,
+  maxDelayMs: 10000,
+  backoffMultiplier: 2,
+};
+
+/**
+ * Sleep for a specified duration
+ */
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Execute a function with exponential backoff retry logic
+ */
+async function withRetry(fn, retryConfig = RETRY_CONFIG) {
+  let lastError;
+  let delay = retryConfig.initialDelayMs;
+
+  for (let attempt = 0; attempt <= retryConfig.maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      
+      // Check if error is retryable (503 or 429 status codes)
+      const isRetryable = error.status === 503 || error.status === 429;
+      
+      if (!isRetryable || attempt === retryConfig.maxRetries) {
+        console.error(`GeminiService: Request failed after ${attempt + 1} attempt(s)`);
+        throw error;
+      }
+
+      console.warn(`GeminiService: Attempt ${attempt + 1} failed with status ${error.status}. Retrying in ${delay}ms...`);
+      await sleep(delay);
+      
+      // Exponential backoff with max delay cap
+      delay = Math.min(delay * retryConfig.backoffMultiplier, retryConfig.maxDelayMs);
+    }
+  }
+
+  throw lastError;
+}
+
 async function generateContent(appName, appDescription, imageDescriptions, language = 'English') {
   console.log(`GeminiService: generating content for app: ${appName} in ${language}`);
 
@@ -102,35 +149,40 @@ async function generateContent(appName, appDescription, imageDescriptions, langu
 
   try {
     console.log('GeminiService: sending request to Gemini API...');
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: { type: Type.STRING },
-            subtitle: { type: Type.STRING },
-            promotionalText: { type: Type.STRING },
-            description: { type: Type.STRING },
-            keywords: { type: Type.STRING },
-            headings: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  heading: { type: Type.STRING },
-                  subheading: { type: Type.STRING },
-                },
-                propertyOrdering: ["heading", "subheading"],
-              }
+    
+    // Use retry logic for the API call
+    const response = await withRetry(async () => {
+      return await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              subtitle: { type: Type.STRING },
+              promotionalText: { type: Type.STRING },
+              description: { type: Type.STRING },
+              keywords: { type: Type.STRING },
+              headings: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    heading: { type: Type.STRING },
+                    subheading: { type: Type.STRING },
+                  },
+                  propertyOrdering: ["heading", "subheading"],
+                }
+              },
             },
-          },
-          propertyOrdering: ["title", "subtitle", "promotionalText", "description", "keywords", "headings"],
+            propertyOrdering: ["title", "subtitle", "promotionalText", "description", "keywords", "headings"],
+          }
         }
-      }
+      });
     });
+    
     console.log('GeminiService: successfully received response from Gemini API.');
     console.log('GeminiService: Raw response text:', response.text);
     return JSON.parse(response.text);
