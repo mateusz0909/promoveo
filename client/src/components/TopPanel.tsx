@@ -1,7 +1,9 @@
 import { useLocation } from 'react-router-dom';
+import { useState } from 'react';
 import { SidebarTrigger } from './ui/sidebar';
 import { DevicePhoneMobileIcon, DeviceTabletIcon } from '@heroicons/react/24/solid';
-import { Separator } from './ui/separator';
+import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
+import { Button } from './ui/button';
 
 interface CurrentProject {
   id: string;
@@ -11,10 +13,26 @@ interface CurrentProject {
 
 interface TopPanelProps {
   currentProject?: CurrentProject | null;
+  onDownloadAll?: () => Promise<void>;
 }
 
-export function TopPanel({ currentProject }: TopPanelProps) {
+export function TopPanel({ currentProject, onDownloadAll }: TopPanelProps) {
   const location = useLocation();
+  const [isDownloading, setIsDownloading] = useState(false);
+  
+  // Check if we're on the images tab
+  const isImagesTab = location.pathname.includes('/images');
+  
+  const handleDownload = async () => {
+    if (!onDownloadAll || isDownloading) return;
+    
+    setIsDownloading(true);
+    try {
+      await onDownloadAll();
+    } finally {
+      setIsDownloading(false);
+    }
+  };
   
   // Determine what to show on the left side
   const getLeftContent = () => {
@@ -56,13 +74,23 @@ export function TopPanel({ currentProject }: TopPanelProps) {
   return (
     <>
       {/* Left side - Mobile trigger, App name/device or "New project" */}
-      <div className="flex items-center gap-3">
-        
+      <div className="flex items-center gap-3 flex-1">
         <SidebarTrigger className="" />
-
-
         {getLeftContent()}
       </div>
+      
+      {/* Right side - Download All button (only on images tab) */}
+      {isImagesTab && onDownloadAll && (
+        <Button 
+          onClick={handleDownload} 
+          variant="outline" 
+          size="sm"
+          disabled={isDownloading}
+        >
+          <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
+          {isDownloading ? 'Downloading...' : 'Download All'}
+        </Button>
+      )}
     </>
   );
 }

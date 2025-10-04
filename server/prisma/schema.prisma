@@ -50,6 +50,7 @@ model GeneratedImage {
   generatedImageUrl   String
   accentColor         String?  // To store the background accent color
   configuration       Json?    // Stores { "heading": "...", "font": "..." }
+  displayOrder        Int      @default(0) // Order in which to display screenshots
 
   // Relation to the project it belongs to
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)

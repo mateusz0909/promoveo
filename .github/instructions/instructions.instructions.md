@@ -1,10 +1,136 @@
 ---
 applyTo: '**'
 ---
-# AppStoreFire AI Agent Instructions
+# AppStoreFire AI Age- **Projects** (`/api/projects`)
+  - `GET /` returns the authenticated user's projects with paging/sorting.
+  - `GET /:id` fetches a single project plus generated assets.
+  - `PUT /:id` updates metadata (`inputAppName`, `inputAppDescription`, etc.).
+  - `PUT /:id/content` persists edited ASO JSON structures.
+  - `PUT /:projectId/images/:imageId` **[NEW]** saves configuration JSON for studio editor (auto-save endpoint, no image regeneration).
+  - `DELETE /:id` removes the project (Supabase cleanup still TODO).
+  - `POST /:projectId/images/:imageId` uploads edited blobs (legacy canvas flow).
+  - `POST /save-legacy` stores legacy project payloads.
+  - `GET /:id/landing-page` returns stored config/meta; `POST /:id/landing-page` (auth + optional logo upload) rebuilds the landing page ZIP and caches download URLs + timestamps.ctions
 
 ## Role
 You operate as a senior full-stack engineer with deep expertise in React, TypeScript, Node.js/Express, Prisma, Supabase, Canvas-based graphics, and Gemini AI integrations. Prioritize maintainability, performance, UX quality, and clear communication. Treat the existing architecture as the source of truth and extend it without breaking contracts.
+
+## Project Scope & Current State
+
+### What AppStoreFire Does
+AppStoreFire is an AI-powered marketing asset generator for mobile app developers. It helps indie developers create professional App Store assets (marketing screenshots, ASO copy, landing pages) without design skills.
+
+**Core Value Proposition:**
+1. Upload app screenshots + basic info
+2. AI generates marketing copy (titles, descriptions, keywords)
+3. Visual editor creates framed, branded marketing images
+4. Download ready-to-publish assets + landing page
+
+### Current Implementation Status
+
+**✅ Completed Features:**
+- User authentication (Supabase Auth)
+- Multi-step project creation workflow
+- AI-generated ASO content (Gemini integration)
+- Full-screen multi-screenshot canvas editor (auto-save)
+- Real-time configuration persistence (no image regeneration on edit)
+- Landing page generator with customization
+- Project history and management
+- Responsive UI with dark mode
+
+**🚧 In Progress:**
+- Phase 9: Download with on-demand image generation from stored configuration
+- Background gradient editor UI (panel exists but not functional)
+- Text color picker integration
+
+**📋 Backlog:**
+- Phase 10: Polish (keyboard shortcuts, tooltips, undo/redo)
+- Screenshot upload/replace within editor
+- Batch editing across multiple screenshots
+- Template system for common design patterns
+- Export to multiple App Store formats
+
+### Development Setup
+
+**Prerequisites:**
+- Node.js 18+ (npm workspaces support)
+- PostgreSQL database (via Supabase or local)
+- Gemini API key (for AI content generation)
+- Supabase account (for auth + storage)
+
+**Environment Variables (.env in root):**
+```bash
+# Server
+GEMINI_API_KEY=your_gemini_api_key
+SUPABASE_URL=your_supabase_project_url
+SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_KEY=your_supabase_service_role_key
+DATABASE_URL=postgresql://user:password@host:port/database
+
+# Optional
+TMP_MAX_FILE_AGE_HOURS=24
+TMP_CLEANUP_INTERVAL_MINUTES=60
+```
+
+**Installation:**
+```bash
+# Install all workspace dependencies
+npm install
+
+# Generate Prisma client
+cd server
+npx prisma generate
+npx prisma migrate dev
+
+# Start development (all workspaces)
+cd ..
+npm run dev
+```
+
+**Development Servers:**
+- Client: http://localhost:5173 (Vite)
+- Server: http://localhost:3001 (Express)
+- Landing Page: http://localhost:3000 (Next.js)
+
+**Key Commands:**
+```bash
+npm run dev              # Start all workspaces
+npm run dev:client       # Client only
+npm run dev:server       # Server only
+npm run dev:lp           # Landing page only
+
+npm run build --workspace=client    # Build React app
+npm run build:lp                    # Build landing page
+
+npm run lint --workspace=client     # Lint React app
+npm run lint:lp                     # Lint landing page
+```
+
+### Tech Stack Summary
+
+**Frontend (client/):**
+- React 19 + TypeScript 5.8
+- Vite 7 (build + dev server)
+- Tailwind CSS 4 + shadcn/ui
+- React Router 7 (routing)
+- Canvas API (image rendering)
+- Jotai (lightweight state)
+- Sonner (toast notifications)
+
+**Backend (server/):**
+- Express 5 + Node.js
+- Prisma 6 (ORM)
+- Supabase (auth + storage)
+- Google Gemini AI 1.19
+- node-canvas 3.2 (server-side rendering)
+- node-vibrant 4.0 (color extraction)
+- Multer (file uploads)
+
+**Landing Page (Landing Page/):**
+- Next.js 15 + TypeScript
+- Tailwind CSS 4
+- shadcn/ui components
+- Static site generation
 
 ## Architecture at a Glance
 - **Monorepo** (`lemmi-studio`) managed through npm workspaces: `client/` (React), `server/` (Express), and `Landing Page/` (Next.js marketing site).
@@ -122,15 +248,93 @@ model GeneratedImage {
    - `Step2` shows a grid of thumbnails with editable descriptions and per-image "✨ Generate with AI" buttons hitting `/api/images/generate-description`.
    - Transitions to a `GeneratingContent` loader while the main generation request is in flight.
 3. **Step 3 – Studio Tabs (`ProjectContent`)**
-   - **ImagesTab**: lazy image gallery with download single/all, edit entry points, and accent chips.
+   - **ImagesTab**: Full-screen canvas editor (screenshots.pro-style) with multi-screenshot editing, unified gradient backgrounds, and real-time preview. Auto-saves configuration every 2 seconds.
    - **AppStoreContentTab**: field-by-field editors with character counters, copy-to-clipboard, and AI regeneration per field (`/api/regenerate-content-part`).
    - **ProjectOverviewTab**: metadata summaries, inline updates persisted via `PUT /api/projects/:id`, danger-zone deletion, and activity timestamps.
    - **LandingPageTab**: landing page builder with App Store ID field, generated image picker, optional logo upload (2 MB max), mockup previews, existing build download, and success view once a ZIP exists.
 
-### Image Editing Stack
-- `ImageEditor` dialog (canvas) powered by `useImageEditor`: caches device mockups, wraps text, supports drag, rotate, and scale handles, highlights hover/drag states, and leverages theme definitions from `constants/imageThemes.ts`.
-- Saves via `/api/projects/:projectId/images/:imageId`, updating configuration JSON (positions, fonts, theme, accent) and clearing stale caches.
-- AI helpers: `/api/images/generate-heading-subheading` suggests captions given an image + app context; `/api/images/regenerate-image` rebuilds marketing art server-side when needed.
+### Image Editing Stack (Studio Editor)
+**Architecture:** Multi-screenshot canvas editor inspired by screenshots.pro, replacing the previous dialog-based single-image editor.
+
+**Components:**
+- `StudioEditorLayout` – Full-screen editor shell with top toolbar, left sidebar, bottom toolbar, and canvas area
+- `StudioEditorContext` – Central state management for all screenshots, selections, view settings, and auto-save logic
+- `MultiScreenshotCanvas` – Renders individual 1200×2600px canvases per screenshot with unified gradient backgrounds
+- `EditorTopToolbar` – Context-aware toolbar showing TextToolbar or MockupToolbar based on selection, plus save status indicator
+- `EditorLeftSidebar` – Icon-only sidebar with collapsible panels (Background, Screenshots, Layers)
+- `EditorBottomToolbar` – Zoom controls and view settings
+- `TextToolbar` – Font family selector, font size (10-128px), text input for heading/subheading
+- `MockupToolbar` – Device frame selector, mockup scale slider
+
+**Key Features:**
+- **Auto-save with 2-second debounce** – Configuration persists to DB automatically after changes
+- **Configuration-only saves** – Images NOT regenerated on save (performance optimization)
+- **On-demand image generation** – Final images generated only when user downloads
+- **Real-time canvas preview** – Client-side rendering at 1200×2600px, displayed at ~350px
+- **Multi-element editing** – Drag heading, subheading, and device mockup independently
+- **Font scaling** – 3.4x multiplier (toolbar size × 3.4 = canvas size) for proper visual scale
+- **Text wrapping** – Automatic line breaks at 90% canvas width (1080px max)
+- **Unified backgrounds** – Gradient or solid colors flow seamlessly across all screenshots
+- **Visual save feedback** – "Saving..." (spinner) or "Saved" (green checkmark) in top toolbar
+
+**Auto-Save Implementation:**
+```tsx
+// Debounced auto-save in StudioEditorContext
+const isFirstRenderRef = useRef(true); // Skip first render
+const [isSaving, setIsSaving] = useState(false);
+
+useEffect(() => {
+  if (isFirstRenderRef.current) {
+    isFirstRenderRef.current = false;
+    return;
+  }
+  
+  setIsSaving(true); // Show "Saving..." immediately
+  
+  const timeout = setTimeout(() => {
+    saveConfiguration(); // API call after 2 seconds
+  }, 2000);
+  
+  return () => clearTimeout(timeout);
+}, [screenshots, global]);
+```
+
+**Configuration Storage (GeneratedImage.configuration):**
+```json
+{
+  "heading": "Text content",
+  "subheading": "Subtitle text",
+  "headingFont": "Inter",
+  "headingFontSize": 64,
+  "subheadingFontSize": 32,
+  "mockupX": 0, "mockupY": 0,
+  "mockupScale": 1.0,
+  "headingX": 100, "headingY": 100,
+  "subheadingX": 100, "subheadingY": 200,
+  "theme": "light",
+  "deviceFrame": "iPhone 15 Pro",
+  "backgroundType": "gradient",
+  "backgroundGradient": {
+    "startColor": "#667eea",
+    "endColor": "#764ba2",
+    "angle": 135
+  }
+}
+```
+
+**API Endpoint:**
+- `PUT /api/projects/:projectId/images/:imageId` – Saves configuration JSON, no image regeneration
+
+**Canvas Specifications:**
+- Canvas size: 1200×2600px (full resolution)
+- Display size: ~350px width (CSS scaling)
+- Mockup base size: 700×1400px
+- Font scaling: toolbar size × 3.4 = canvas size
+- Text max width: 1080px (90% of canvas)
+
+**AI Helpers:**
+- `/api/images/generate-heading-subheading` – Suggests captions from image + app context
+- `/api/images/regenerate-image` – Server-side image rebuild (legacy support)
 
 ### Landing Page Builder
 - Fetches existing config via `/api/projects/:id/landing-page`, preserves last generated ZIP timestamp, and exposes quick download for the latest bundle.
@@ -163,9 +367,62 @@ model GeneratedImage {
 9. **Authentication awareness** – Protected fetches must include the Supabase access token (`Authorization: Bearer ...`). Anonymous helpers (`/api/images/generate-description`, `/api/images/generate-heading-subheading`, legacy ZIP) stay public.
 10. **Temp file hygiene** – Always use `tmpService` helpers for temporary artifacts and allow scheduled cleanup to remove leftovers.
 
+## Recent Major Changes (October 2025)
+
+### Studio Editor Refactor
+Transformed the image editor from a dialog-based single-image editor to a full-screen multi-screenshot canvas editor inspired by screenshots.pro.
+
+**Key Architectural Changes:**
+1. **Configuration-First Approach** – All edits save configuration JSON to DB, images generated only on download
+2. **Auto-Save System** – 2-second debounced saves with visual feedback (no manual save button)
+3. **Multi-Screenshot Canvas** – Edit all screenshots simultaneously with unified backgrounds
+4. **Real-Time Preview** – Client-side canvas rendering at full resolution (1200×2600px)
+5. **Layout Refactor** – Full-screen editor with context-aware toolbars and collapsible panels
+
+**Implementation Highlights:**
+- `StudioEditorContext` manages state for all screenshots + auto-save logic
+- `isFirstRenderRef` prevents infinite loop by skipping initial mount
+- Font scaling (3.4x multiplier) ensures visual consistency between toolbar and canvas
+- Text wrapping at 90% canvas width (1080px) with multi-line support
+- Mockup positioning and scaling with real-time drag handles
+- Unified gradient backgrounds flow seamlessly across screenshots
+
+**Breaking Changes:**
+- Old `ImageEditor` dialog replaced with `StudioEditorLayout` full-screen editor
+- `PUT /api/projects/:projectId/images/:imageId` now saves configuration only (no image generation)
+- Images generated on-demand during download instead of on every edit
+
+**Migration Notes:**
+- Existing projects load configuration from `GeneratedImage.configuration` JSON field
+- Legacy image URLs remain valid but may not reflect latest edits until regeneration
+- Download triggers fresh image generation using stored configuration
+
+**Performance Benefits:**
+- 🚀 Instant feedback (no server round-trip for preview)
+- 🚀 Reduced server load (no constant image regeneration)
+- 🚀 Smaller payloads (JSON config vs. full images)
+- 🚀 Faster editing workflow (auto-save + real-time preview)
+
+### Known Issues & Workarounds
+
+**Issue: Auto-save shows "Saving..." continuously**
+- **Cause:** `saveConfiguration` in useEffect dependency array creates infinite loop
+- **Fix:** Remove function from dependencies, add `isFirstRenderRef` to skip initial render
+- **Code:** See `client/src/context/StudioEditorContext.tsx` lines 295-315
+
+**Issue: Layout padding causes editor to be cramped**
+- **Fix:** Conditional padding in `MainLayout.tsx` based on `/images` route
+- **Code:** `${isEditorPage ? '' : 'py-6 pr-6 pl-6'}` for symmetric spacing
+
+**Issue: Font sizes look wrong on canvas**
+- **Cause:** Canvas renders at full 1200px but displayed at ~350px
+- **Fix:** 3.4x font scaling multiplier for proper visual scale
+- **Code:** `ctx.font = bold ${fontSize * 3.4}px ${fontFamily}`
+
 ## Validation & Quality
 - After modifying runnable code, run targeted checks (e.g., `npm run lint --workspace=client`, smoke the studio flow) before shipping.
-- dont create summary documents unless explicitly requested.
+- Test auto-save: Make edits, wait 2 seconds, verify DB updates with configuration JSON
+- Test canvas rendering: Ensure text wraps correctly, mockups scale properly, gradients flow across screenshots
+- Test image generation: Download images, verify they match canvas preview
+- dont create summary or summary documents unless explicitly requested!
 
-
-Stay aligned with this reference whenever you extend AppStoreFire. Keep the experience polished for indie developers relying on AI-assisted marketing.

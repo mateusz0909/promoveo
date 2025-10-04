@@ -29,6 +29,9 @@ router.post(
 // Update project ASO content
 router.put('/:id/content', requireAuth, projectController.updateProjectContent);
 
+// Update image configuration (for studio editor)
+router.put('/:projectId/images/:imageId', requireAuth, projectController.updateImageConfiguration);
+
 // Update project image (legacy endpoint)
 router.post('/:projectId/images/:imageId', requireAuth, upload.single('image'), projectController.updateProjectImage);
 

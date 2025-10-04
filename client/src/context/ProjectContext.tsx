@@ -11,6 +11,8 @@ interface ProjectContextType {
   currentProject: CurrentProject | null;
   setCurrentProject: (project: CurrentProject | null) => void;
   updateCurrentProject: (updates: Partial<CurrentProject>) => void;
+  onDownloadAll: (() => Promise<void>) | null;
+  setOnDownloadAll: (callback: (() => Promise<void>) | null) => void;
 }
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
@@ -29,6 +31,7 @@ interface ProjectProviderProps {
 
 export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) => {
   const [currentProject, setCurrentProject] = useState<CurrentProject | null>(null);
+  const [onDownloadAll, _setOnDownloadAll] = useState<(() => Promise<void>) | null>(null);
 
   const updateCurrentProject = (updates: Partial<CurrentProject>) => {
     if (currentProject) {
@@ -36,10 +39,16 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
     }
   };
 
+  const setOnDownloadAll = (callback: (() => Promise<void>) | null) => {
+    _setOnDownloadAll(() => callback);
+  };
+
   const value = {
     currentProject,
     setCurrentProject,
     updateCurrentProject,
+    onDownloadAll,
+    setOnDownloadAll,
   };
 
   return (

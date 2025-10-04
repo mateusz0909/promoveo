@@ -7,6 +7,9 @@ import { LandingPageTab } from './tabs/LandingPageTab';
 import { ImageEditor } from './ImageEditor';
 import { toast } from "sonner";
 import { useAuth } from '../context/AuthContext';
+import { useProject } from '../context/ProjectContext';
+import { renderScreenshotToCanvas } from './studio-editor/canvasRenderer';
+import JSZip from 'jszip';
 import type { GeneratedImage, GeneratedImageConfiguration, GeneratedText } from '@/types/project';
 
 interface ProjectContentProps {
@@ -29,6 +32,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = (props) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { session } = useAuth();
+  const { setOnDownloadAll } = useProject();
   const [fonts, setFonts] = useState<string[]>([]);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
@@ -155,46 +159,95 @@ export const ProjectContent: React.FC<ProjectContentProps> = (props) => {
       return;
     }
 
-    toast.info("Preparing images for download...");
+    const toastId = toast.loading("Generating images...");
 
     try {
-      const fullImageUrls = generatedImages
-        .map(image => image.generatedImageUrl)
-        .filter((url): url is string => Boolean(url));
+      const zip = new JSZip();
 
-      if (fullImageUrls.length === 0) {
-        toast.info("No images available for download.");
-        return;
+      // Generate each image from configuration
+      for (let i = 0; i < generatedImages.length; i++) {
+        const image = generatedImages[i];
+        const config = image.configuration || {};
+
+        // Create a temporary canvas for this image
+        const canvas = document.createElement('canvas');
+        canvas.width = 1200;
+        canvas.height = 2600;
+
+        // Render the screenshot using the same logic as the editor
+        await renderScreenshotToCanvas(canvas, {
+          sourceScreenshotUrl: image.sourceScreenshotUrl,
+          configuration: config,
+          device: device || 'iPhone',
+          index: i, // Pass the screenshot index
+          totalImages: generatedImages.length, // Pass total count for gradient interpolation
+        });
+
+        // Convert canvas to blob
+        const blob = await new Promise<Blob>((resolve) => {
+          canvas.toBlob((b) => resolve(b!), 'image/png');
+        });
+
+        // Add to ZIP
+        zip.file(`image_${i + 1}.png`, blob);
+        
+        // Update progress
+        toast.loading(`Generating image ${i + 1}/${generatedImages.length}...`, { id: toastId });
       }
 
-      const response = await fetch("http://localhost:3001/api/download-images-zip", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ imageUrls: fullImageUrls }),
+      toast.loading("Creating ZIP file...", { id: toastId });
+
+      // Generate ZIP file
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+
+      console.log('ZIP blob created:', zipBlob.size, 'bytes');
+
+      // Create download link with proper MIME type
+      const url = URL.createObjectURL(new Blob([zipBlob], { type: 'application/zip' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${appName || 'app_images'}_${Date.now()}.zip`;
+      link.style.display = 'none';
+      
+      console.log('Download link created:', link.download);
+      
+      // Add to DOM, trigger click, and clean up
+      document.body.appendChild(link);
+      
+      // Use requestAnimationFrame to ensure the link is in the DOM before clicking
+      requestAnimationFrame(() => {
+        console.log('Triggering download click...');
+        link.click();
+        
+        // Clean up after download starts
+        setTimeout(() => {
+          if (link.parentNode) {
+            document.body.removeChild(link);
+          }
+          URL.revokeObjectURL(url);
+          console.log('Download cleanup completed');
+        }, 1000);
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `app_images_${Date.now()}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-      toast.success("Images downloaded successfully!");
+      
+      toast.success("ZIP file downloaded successfully!", { id: toastId });
 
     } catch (error) {
       console.error("Error downloading images:", error);
-      toast.error("Failed to download images. Please try again.");
+      toast.error("Failed to download images. Please try again.", { id: toastId });
     }
   };
+
+  // Set download callback in context when on images tab
+  const currentView = getCurrentView();
+  useEffect(() => {
+    if (currentView === 'images') {
+      setOnDownloadAll(handleDownloadAll);
+    } else {
+      setOnDownloadAll(null);
+    }
+    return () => setOnDownloadAll(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentView]);
 
   const handleDeleteProject = async () => {
     if (!projectId) {
@@ -289,11 +342,9 @@ export const ProjectContent: React.FC<ProjectContentProps> = (props) => {
     session?.access_token
   ]);
 
-  const currentView = getCurrentView();
-
   // Render appropriate content based on current view (controlled by sidebar navigation)
   return (
-    <div className="w-full">
+    <div className="w-full h-full">
       {currentView === 'content' && (
         <AppStoreContentTab 
           generatedText={generatedText}
@@ -325,7 +376,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = (props) => {
       {currentView === 'images' && (
         <ImagesTab 
           imageList={imageList}
-          onDownloadAll={handleDownloadAll}
+          projectId={projectId}
           onDownloadSingle={handleDownloadSingleImage}
           onEdit={handleEdit}
         />

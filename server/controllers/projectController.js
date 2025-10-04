@@ -62,7 +62,11 @@ const projectController = {
       const project = await prisma.project.findFirst({
         where: { id, userId },
         include: {
-          generatedImages: true
+          generatedImages: {
+            orderBy: {
+              displayOrder: 'asc'
+            }
+          }
         }
       });
 
@@ -255,6 +259,53 @@ const projectController = {
       console.error('Error message:', error.message);
       console.error('Error stack:', error.stack);
       res.status(500).json({ error: 'Failed to update image.' });
+    }
+  },
+
+  // Update image configuration only (no image regeneration)
+  async updateImageConfiguration(req, res) {
+    const { projectId, imageId } = req.params;
+    const { configuration, displayOrder } = req.body;
+    const userId = req.user.id;
+
+    try {
+      console.log('updateImageConfiguration: Starting', { projectId, imageId, displayOrder });
+
+      // Verify image belongs to user's project
+      const image = await prisma.generatedImage.findFirst({
+        where: {
+          id: imageId,
+          project: {
+            id: projectId,
+            userId: userId
+          }
+        }
+      });
+
+      if (!image) {
+        console.error('updateImageConfiguration: Image not found or unauthorized');
+        return res.status(404).json({ error: 'Image not found or unauthorized' });
+      }
+
+      // Update configuration JSON and displayOrder
+      const updateData = { configuration };
+      if (displayOrder !== undefined) {
+        updateData.displayOrder = displayOrder;
+      }
+
+      const updatedImage = await prisma.generatedImage.update({
+        where: { id: imageId },
+        data: updateData
+      });
+
+      console.log('updateImageConfiguration: Configuration saved successfully');
+      res.status(200).json({ 
+        success: true,
+        configuration: updatedImage.configuration 
+      });
+    } catch (error) {
+      console.error('updateImageConfiguration: ERROR occurred', error);
+      res.status(500).json({ error: 'Failed to update configuration.' });
     }
   },
 

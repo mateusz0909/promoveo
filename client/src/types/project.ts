@@ -22,6 +22,12 @@ export interface GeneratedImageConfiguration {
   subheadingFont?: string | null;
   headingFontSize?: number | null;
   subheadingFontSize?: number | null;
+  headingAlign?: 'left' | 'center' | 'right' | null;
+  subheadingAlign?: 'left' | 'center' | 'right' | null;
+  headingLetterSpacing?: number | null;
+  subheadingLetterSpacing?: number | null;
+  headingLineHeight?: number | null;
+  subheadingLineHeight?: number | null;
   mockupX?: number | null;
   mockupY?: number | null;
   mockupScale?: number | null;
@@ -34,6 +40,13 @@ export interface GeneratedImageConfiguration {
   headingColor?: string | null;
   subheadingColor?: string | null;
   backgroundColor?: string | null;
+  backgroundType?: string | null;
+  backgroundSolid?: string | null;
+  backgroundGradient?: {
+    startColor: string;
+    endColor: string;
+    angle: number;
+  } | null;
   layout?: ImageLayout | null;
 }
 

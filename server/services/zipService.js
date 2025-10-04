@@ -1,6 +1,10 @@
 const archiver = require('archiver');
 const fs = require('fs');
 const path = require('path');
+const { prisma } = require('../lib/clients');
+const imageGenerationService = require('./imageGenerationService');
+const { getSignedUrlFromSupabase } = require('./storageService');
+const tmpService = require('./tmpService');
 
 /**
  * Creates a zip archive from a list of image paths.
