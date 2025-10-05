@@ -47,7 +47,46 @@ export interface GeneratedImageConfiguration {
     endColor: string;
     angle: number;
   } | null;
+  backgroundImage?: {
+    url: string;
+    fit: 'cover' | 'contain' | 'fill' | 'tile';
+    opacity: number;
+  } | null;
   layout?: ImageLayout | null;
+  deviceFrame?: string | null;
+  visuals?: Array<{
+    id: string;
+    visualId: string;
+    imageUrl: string;
+    name: string;
+    width: number;
+    height: number;
+    position: { x: number; y: number };
+    scale: number;
+    rotation: number;
+    zIndex: number;
+  }> | null;
+  // New instance-based fields
+  textInstances?: Array<{
+    id: string;
+    type: 'heading' | 'subheading';
+    text: string;
+    position: { x: number; y: number };
+    fontSize: number;
+    color: string;
+    align: 'left' | 'center' | 'right';
+    letterSpacing: number;
+    lineHeight: number;
+    fontFamily: string;
+  }> | null;
+  mockupInstances?: Array<{
+    id: string;
+    type: string;
+    sourceScreenshotUrl: string;
+    position: { x: number; y: number };
+    scale: number;
+    rotation: number;
+  }> | null;
 }
 
 export interface GeneratedImage {

@@ -69,7 +69,102 @@ const createZip = (sourceDir, outPath) => {
 };
 
 
+/**
+ * Creates a zip buffer with generated images for a project
+ * Generates images on-demand from stored configuration
+ * @param {Object} project - The project object from database
+ * @returns {Promise<Buffer>} A promise that resolves with the zip buffer
+ */
+const createImagesZip = async (project) => {
+  console.log('zipService: Creating images ZIP for project', project.id);
+  
+  const archiver = require('archiver');
+  const axios = require('axios');
+  
+  // Create archive
+  const archive = archiver('zip', {
+    zlib: { level: 9 }
+  });
+
+  // Collect chunks in memory
+  const chunks = [];
+  archive.on('data', (chunk) => chunks.push(chunk));
+  
+  // Wait for archive to finish
+  const zipPromise = new Promise((resolve, reject) => {
+    archive.on('end', () => {
+      console.log('zipService: Archive finalized');
+      resolve(Buffer.concat(chunks));
+    });
+    archive.on('error', reject);
+  });
+
+  // Get generated images from project
+  const generatedImages = project.generatedImages || [];
+  
+  if (!generatedImages || generatedImages.length === 0) {
+    console.log('zipService: No images to zip');
+    archive.finalize();
+    return zipPromise;
+  }
+
+  console.log(`zipService: Processing ${generatedImages.length} images`);
+
+  // Generate and add each image to the archive
+  for (let i = 0; i < generatedImages.length; i++) {
+    const imageData = generatedImages[i];
+    const config = imageData.configuration || {};
+    
+    try {
+      console.log(`zipService: Generating image ${i + 1}/${generatedImages.length}`);
+      console.log(`zipService: Configuration for image ${i + 1}:`, JSON.stringify({
+        hasHeading: !!config.heading,
+        hasSubheading: !!config.subheading,
+        hasVisuals: !!(config.visuals && config.visuals.length > 0),
+        visualsCount: config.visuals ? config.visuals.length : 0,
+        layout: config.layout
+      }));
+      
+      // Download the original screenshot
+      const signedUrl = await getSignedUrlFromSupabase(imageData.sourceScreenshotUrl);
+      const response = await axios.get(signedUrl, { responseType: 'arraybuffer' });
+      const screenshotBuffer = Buffer.from(response.data);
+
+      // Generate image with configuration (including visuals)
+      const { imageBuffer } = await imageGenerationService.generateAppStoreImage(
+        config.heading || 'App Screenshot',
+        config.subheading || '',
+        screenshotBuffer,
+        config.headingFont || 'Farro',
+        config.subheadingFont || 'Headland One',
+        config.headingFontSize || 120,
+        config.subheadingFontSize || 69,
+        project.device || 'iPhone',
+        {
+          layout: config.layout || 'text-top',
+          visuals: config.visuals || [] // Pass visuals to renderer
+        }
+      );
+
+      // Add to archive
+      archive.append(imageBuffer, { name: `image_${i + 1}.png` });
+      console.log(`zipService: Added image ${i + 1} to archive`);
+      
+    } catch (error) {
+      console.error(`zipService: Error generating image ${i + 1}:`, error);
+      // Continue with other images even if one fails
+    }
+  }
+
+  // Finalize archive
+  archive.finalize();
+  
+  return zipPromise;
+};
+
+
 module.exports = {
   createZipArchive,
   createZip,
+  createImagesZip,
 };

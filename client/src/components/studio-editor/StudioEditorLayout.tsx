@@ -16,7 +16,7 @@ interface StudioEditorLayoutProps {
  */
 function EditorContent() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { clearSelection } = useStudioEditor();
+  const { clearSelection, deleteElement, selection } = useStudioEditor();
 
   // Handle clicks outside canvas to unfocus
   useEffect(() => {
@@ -38,6 +38,33 @@ function EditorContent() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [clearSelection]);
+
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Delete/Backspace - delete selected element
+      if ((event.key === 'Delete' || event.key === 'Backspace') && selection.elementId) {
+        // Prevent default only if an element is selected and we're not in a text input
+        const target = event.target as HTMLElement;
+        const isTextInput = target.tagName === 'INPUT' || 
+                           target.tagName === 'TEXTAREA' || 
+                           target.contentEditable === 'true';
+        
+        if (!isTextInput && selection.screenshotIndex !== null) {
+          event.preventDefault();
+          deleteElement(selection.screenshotIndex, selection.elementId);
+        }
+      }
+
+      // Escape - clear selection
+      if (event.key === 'Escape') {
+        clearSelection();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [clearSelection, deleteElement, selection.screenshotIndex, selection.elementId]);
 
   return (
     <div ref={containerRef} className="flex flex-col h-full bg-background">

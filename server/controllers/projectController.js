@@ -309,6 +309,76 @@ const projectController = {
     }
   },
 
+  // Replace source screenshot
+  async replaceSourceScreenshot(req, res) {
+    const { projectId, imageId } = req.params;
+    const userId = req.user.id;
+    const file = req.file;
+
+    console.log('replaceSourceScreenshot: Starting', { projectId, imageId, hasFile: !!file });
+
+    if (!file) {
+      console.error('replaceSourceScreenshot: No file provided');
+      return res.status(400).json({ error: 'Screenshot file is required' });
+    }
+
+    try {
+      const imageBuffer = file.buffer;
+      console.log('replaceSourceScreenshot: File buffer received, size:', imageBuffer.length);
+
+      // Verify image belongs to user's project
+      const image = await prisma.generatedImage.findFirst({
+        where: {
+          id: imageId,
+          project: {
+            id: projectId,
+            userId: userId
+          }
+        }
+      });
+
+      if (!image) {
+        console.error('replaceSourceScreenshot: Image not found or unauthorized');
+        return res.status(404).json({ error: 'Image not found or unauthorized' });
+      }
+
+      console.log('replaceSourceScreenshot: Uploading new screenshot to Supabase');
+      
+      // Replace source screenshot in Supabase
+      const { newImageUrl, oldImagePath } = await replaceImageInSupabase(
+        image.sourceScreenshotUrl,
+        imageBuffer,
+        file.mimetype
+      );
+      
+      console.log('replaceSourceScreenshot: Upload successful', { newImageUrl });
+
+      // Update database with new source URL
+      const updatedImage = await prisma.generatedImage.update({
+        where: { id: imageId },
+        data: {
+          sourceScreenshotUrl: newImageUrl,
+        },
+      });
+
+      console.log('replaceSourceScreenshot: Database updated successfully');
+
+      // Cleanup old version in background
+      setImmediate(() => {
+        cleanupOldImageVersion(oldImagePath);
+      });
+
+      res.status(200).json({ 
+        success: true,
+        sourceScreenshotUrl: newImageUrl,
+        message: 'Screenshot replaced successfully'
+      });
+    } catch (error) {
+      console.error('replaceSourceScreenshot: ERROR occurred', error);
+      res.status(500).json({ error: 'Failed to replace screenshot' });
+    }
+  },
+
   // Save project (legacy endpoint)
   async saveProject(req, res) {
     const { inputAppName, inputAppDescription, generatedAsoText, generatedImages } = req.body;
@@ -537,6 +607,223 @@ const projectController = {
     } catch (error) {
       console.error('Error in generate-landing-page:', error);
       res.status(500).json({ error: 'Error generating landing page' });
+    }
+  },
+
+  // Create a new screenshot with placeholder image
+  async createScreenshot(req, res) {
+    const { projectId } = req.params;
+    const { displayOrder } = req.body;
+    const userId = req.user.id;
+
+    try {
+      console.log(`create-screenshot: Creating App Store image for project ${projectId}`);
+
+      // Verify project ownership
+      const project = await prisma.project.findFirst({
+        where: { id: projectId, userId },
+        include: {
+          generatedImages: {
+            orderBy: { displayOrder: 'asc' }
+          }
+        }
+      });
+
+      if (!project) {
+        console.log('create-screenshot: Project not found or unauthorized');
+        return res.status(404).json({ error: 'Project not found' });
+      }
+
+      // Check maximum screenshots limit
+      if (project.generatedImages.length >= 10) {
+        console.log('create-screenshot: Maximum 10 App Store images reached');
+        return res.status(400).json({ error: 'Maximum 10 App Store images allowed per project' });
+      }
+
+      // Generate placeholder image
+      const { generatePlaceholderImage } = require('../services/placeholderImageService');
+      const { uploadImageToSupabase } = require('../services/storageService');
+
+      const placeholderBuffer = await generatePlaceholderImage({
+        width: 1200,
+        height: 2600,
+        text: 'New Screenshot',
+        device: project.device || 'iPhone 15 Pro'
+      });
+
+      // Upload placeholder to Supabase Storage
+      const timestamp = Date.now();
+      const sourceFileName = `placeholder-source-${timestamp}.png`;
+      const generatedFileName = `placeholder-generated-${timestamp}.png`;
+
+      console.log('create-screenshot: Uploading placeholder images to Supabase');
+
+      const sourceUrl = await uploadImageToSupabase(
+        placeholderBuffer,
+        sourceFileName,
+        'image/png',
+        userId
+      );
+
+      const generatedUrl = await uploadImageToSupabase(
+        placeholderBuffer,
+        generatedFileName,
+        'image/png',
+        userId
+      );
+
+      // Determine display order
+      const finalDisplayOrder = displayOrder !== undefined 
+        ? displayOrder 
+        : project.generatedImages.length;
+
+      // Create database record with default configuration
+      const newImage = await prisma.generatedImage.create({
+        data: {
+          projectId,
+          sourceScreenshotUrl: sourceUrl,
+          generatedImageUrl: generatedUrl,
+          accentColor: '#667eea',
+          displayOrder: finalDisplayOrder,
+          configuration: {
+            heading: 'Tap to edit heading',
+            subheading: 'Tap to edit subheading',
+            headingFont: 'Inter',
+            headingFontSize: 64,
+            subheadingFontSize: 32,
+            mockupX: 0,
+            mockupY: 0,
+            mockupScale: 1,
+            mockupRotation: 0,
+            headingX: 100,
+            headingY: 100,
+            subheadingX: 100,
+            subheadingY: 300,
+            headingColor: '#000000',
+            subheadingColor: '#666666',
+            headingAlign: 'left',
+            subheadingAlign: 'left',
+            headingLetterSpacing: 0,
+            subheadingLetterSpacing: 0,
+            headingLineHeight: 1.2,
+            subheadingLineHeight: 1.4,
+            theme: 'light',
+            deviceFrame: project.device || 'iPhone 15 Pro',
+            backgroundType: 'gradient',
+            backgroundGradient: {
+              startColor: '#667eea',
+              endColor: '#764ba2',
+              angle: 135
+            }
+          }
+        }
+      });
+
+      console.log(`create-screenshot: Screenshot created successfully with ID ${newImage.id}`);
+      res.status(201).json(newImage);
+
+    } catch (error) {
+      console.error('Error in create-screenshot:', error);
+      res.status(500).json({ error: 'Failed to create screenshot' });
+    }
+  },
+
+  // Delete a screenshot
+  async deleteScreenshot(req, res) {
+    const { projectId, imageId } = req.params;
+    const userId = req.user.id;
+
+    try {
+      console.log(`delete-screenshot: Deleting image ${imageId} from project ${projectId}`);
+
+      // Verify image belongs to user's project
+      const image = await prisma.generatedImage.findFirst({
+        where: {
+          id: imageId,
+          project: { id: projectId, userId }
+        },
+        include: {
+          project: {
+            include: {
+              generatedImages: true
+            }
+          }
+        }
+      });
+
+      if (!image) {
+        console.log('delete-screenshot: Image not found or unauthorized');
+        return res.status(404).json({ error: 'Image not found or unauthorized' });
+      }
+
+      // Check minimum screenshot requirement
+      if (image.project.generatedImages.length <= 1) {
+        console.log('delete-screenshot: Cannot delete last App Store image');
+        return res.status(400).json({ 
+          error: 'Cannot delete last App Store image. At least one image is required.' 
+        });
+      }
+
+      // Delete from Supabase Storage
+      console.log('delete-screenshot: Deleting images from Supabase Storage');
+      await Promise.allSettled([
+        deleteProjectAsset(image.sourceScreenshotUrl),
+        deleteProjectAsset(image.generatedImageUrl)
+      ]);
+
+      // Delete from database
+      await prisma.generatedImage.delete({
+        where: { id: imageId }
+      });
+
+      console.log('delete-screenshot: Screenshot deleted successfully');
+      res.status(200).json({ message: 'Screenshot deleted successfully' });
+
+    } catch (error) {
+      console.error('Error in delete-screenshot:', error);
+      res.status(500).json({ error: 'Failed to delete screenshot' });
+    }
+  },
+
+  // Update screenshot display order
+  async updateDisplayOrder(req, res) {
+    const { projectId, imageId } = req.params;
+    const { displayOrder } = req.body;
+    const userId = req.user.id;
+
+    try {
+      console.log(`update-display-order: Updating order for image ${imageId} to ${displayOrder}`);
+
+      // Validate displayOrder
+      if (typeof displayOrder !== 'number' || displayOrder < 0) {
+        return res.status(400).json({ error: 'Invalid display order' });
+      }
+
+      // Verify ownership
+      const image = await prisma.generatedImage.findFirst({
+        where: {
+          id: imageId,
+          project: { id: projectId, userId }
+        }
+      });
+
+      if (!image) {
+        console.log('update-display-order: Image not found or unauthorized');
+        return res.status(404).json({ error: 'Image not found or unauthorized' });
+      }
+
+      // Update display order
+      await prisma.generatedImage.update({
+        where: { id: imageId },
+        data: { displayOrder }
+      });
+
+      console.log('update-display-order: Display order updated successfully');
+      res.status(200).json({ message: 'Display order updated successfully' });
+
+    } catch (error) {
+      console.error('Error in update-display-order:', error);
+      res.status(500).json({ error: 'Failed to update display order' });
     }
   }
 };

@@ -1,11 +1,22 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useStudioEditor } from '@/context/StudioEditorContext';
+import { useAuth } from '@/context/AuthContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowUpIcon, ArrowDownIcon, ArrowRightIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
+import { Slider } from '@/components/ui/slider';
+import { 
+  ArrowUpIcon, 
+  ArrowDownIcon, 
+  ArrowRightIcon, 
+  ArrowLeftIcon,
+  PhotoIcon,
+  TrashIcon,
+  ArrowUpTrayIcon
+} from '@heroicons/react/24/outline';
+import { toast } from 'sonner';
 
 const GRADIENT_DIRECTIONS = [
   { name: 'Left to Right', angle: 90, icon: ArrowRightIcon },
@@ -62,10 +73,36 @@ const GRADIENT_PRESETS = [
 
 export function BackgroundPanel() {
   const { global, updateBackground } = useStudioEditor();
+  const { session } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const [activeTab, setActiveTab] = useState<'color' | 'gradient' | 'image'>(
     global.backgroundType === 'solid' ? 'color' : 
     global.backgroundType === 'gradient' ? 'gradient' : 'image'
   );
+
+  // Handle tab change - automatically switch background type
+  const handleTabChange = (newTab: 'color' | 'gradient' | 'image') => {
+    setActiveTab(newTab);
+    
+    // Automatically update background type when switching tabs
+    if (newTab === 'color' && global.backgroundType !== 'solid') {
+      updateBackground({
+        backgroundType: 'solid',
+      });
+    } else if (newTab === 'gradient' && global.backgroundType !== 'gradient') {
+      updateBackground({
+        backgroundType: 'gradient',
+      });
+    } else if (newTab === 'image' && global.backgroundType !== 'image') {
+      // Only switch to image if there's a URL, otherwise keep current type
+      if (global.backgroundImage.url) {
+        updateBackground({
+          backgroundType: 'image',
+        });
+      }
+    }
+  };
 
   const handleSolidColorChange = (color: string) => {
     updateBackground({
@@ -94,8 +131,108 @@ export function BackgroundPanel() {
     });
   };
 
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select a valid image file');
+      return;
+    }
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Image size must be less than 10MB');
+      return;
+    }
+
+    if (!session?.access_token) {
+      toast.error('You must be logged in to upload images');
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      // Create FormData to send the file
+      const formData = new FormData();
+      formData.append('image', file);
+
+      // Upload to server
+      const response = await fetch('http://localhost:3001/api/images/upload-background', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to upload image');
+      }
+
+      const { imageUrl } = await response.json();
+
+      // Update background with the permanent Supabase URL
+      updateBackground({
+        backgroundType: 'image',
+        backgroundImage: {
+          url: imageUrl,
+          fit: global.backgroundImage.fit || 'cover',
+          opacity: global.backgroundImage.opacity ?? 1,
+        },
+      });
+
+      toast.success('Background image uploaded successfully');
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to upload image');
+    } finally {
+      setIsUploading(false);
+      // Reset input
+      if (event.target) {
+        event.target.value = '';
+      }
+    }
+  };
+
+  const handleImageFitChange = (fit: 'cover' | 'contain' | 'fill' | 'tile') => {
+    updateBackground({
+      backgroundImage: {
+        ...global.backgroundImage,
+        fit,
+      },
+    });
+  };
+
+  const handleImageOpacityChange = (opacity: number) => {
+    updateBackground({
+      backgroundImage: {
+        ...global.backgroundImage,
+        opacity,
+      },
+    });
+  };
+
+  const handleRemoveImage = () => {
+    // Clear the image URL completely
+    updateBackground({
+      backgroundType: 'gradient',
+      backgroundImage: {
+        url: '',
+        fit: 'cover',
+        opacity: 1,
+      },
+    });
+    // Switch to gradient tab
+    setActiveTab('gradient');
+    toast.success('Background image removed');
+  };
+
   return (
-    <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full">
+    <Tabs value={activeTab} onValueChange={(value) => handleTabChange(value as 'color' | 'gradient' | 'image')} className="w-full">
       <TabsList className="grid w-full grid-cols-3 mb-4">
         <TabsTrigger value="color">Color</TabsTrigger>
         <TabsTrigger value="gradient">Gradient</TabsTrigger>
@@ -278,14 +415,145 @@ export function BackgroundPanel() {
 
       {/* Image Tab */}
       <TabsContent value="image" className="space-y-4">
-        <div className="text-center py-8">
-          <p className="text-sm text-muted-foreground mb-4">
-            Upload a custom background image
-          </p>
-          <Button variant="outline" disabled>
-            Coming Soon
-          </Button>
-        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
+          onChange={handleImageUpload}
+          className="hidden"
+        />
+
+        {!global.backgroundImage.url ? (
+          /* Upload State */
+          <div className="space-y-4">
+            <div 
+              onClick={() => !isUploading && fileInputRef.current?.click()}
+              className={`border-2 border-dashed border-border rounded-lg p-8 text-center transition-colors ${
+                isUploading 
+                  ? 'opacity-50 cursor-not-allowed' 
+                  : 'hover:border-blue-500 hover:bg-accent/50 cursor-pointer'
+              }`}
+            >
+              <PhotoIcon className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
+              <p className="text-sm font-medium mb-1">
+                {isUploading ? 'Uploading...' : 'Upload Background Image'}
+              </p>
+              <p className="text-xs text-muted-foreground mb-4">
+                {isUploading ? 'Please wait' : 'Click to browse or drag and drop'}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                PNG, JPG, WebP (Max 10MB)
+              </p>
+            </div>
+
+            <Button 
+              onClick={() => fileInputRef.current?.click()}
+              variant="outline" 
+              className="w-full"
+              disabled={isUploading}
+            >
+              <ArrowUpTrayIcon className="h-4 w-4 mr-2" />
+              {isUploading ? 'Uploading...' : 'Choose Image'}
+            </Button>
+          </div>
+        ) : (
+          /* Image Loaded State */
+          <div className="space-y-4">
+            {/* Preview */}
+            <div className="relative rounded-lg overflow-hidden border border-border">
+              <img
+                src={global.backgroundImage.url}
+                alt="Background preview"
+                className="w-full h-32 object-cover"
+                style={{ opacity: global.backgroundImage.opacity }}
+              />
+              <div className="absolute top-2 right-2">
+                <Button
+                  onClick={handleRemoveImage}
+                  size="sm"
+                  variant="destructive"
+                  className="h-7 w-7 p-0"
+                  title="Remove image"
+                >
+                  <TrashIcon className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Fit Mode */}
+            <div className="space-y-2">
+              <Label htmlFor="image-fit" className="text-xs text-muted-foreground">
+                Fit Mode
+              </Label>
+              <Select
+                value={global.backgroundImage.fit}
+                onValueChange={handleImageFitChange}
+              >
+                <SelectTrigger id="image-fit" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cover">
+                    <div className="flex flex-col items-start">
+                      <span className="font-medium">Cover</span>
+                      <span className="text-xs text-muted-foreground">Fill canvas, may crop</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="contain">
+                    <div className="flex flex-col items-start">
+                      <span className="font-medium">Contain</span>
+                      <span className="text-xs text-muted-foreground">Fit entire image, may letterbox</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="fill">
+                    <div className="flex flex-col items-start">
+                      <span className="font-medium">Fill</span>
+                      <span className="text-xs text-muted-foreground">Stretch to fill (may distort)</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="tile">
+                    <div className="flex flex-col items-start">
+                      <span className="font-medium">Tile</span>
+                      <span className="text-xs text-muted-foreground">Repeat pattern</span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Opacity Control */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="image-opacity" className="text-xs text-muted-foreground">
+                  Opacity
+                </Label>
+                <span className="text-xs font-medium text-foreground">
+                  {Math.round(global.backgroundImage.opacity * 100)}%
+                </span>
+              </div>
+              <Slider
+                id="image-opacity"
+                value={[global.backgroundImage.opacity * 100]}
+                onValueChange={(values) => handleImageOpacityChange(values[0] / 100)}
+                min={0}
+                max={100}
+                step={1}
+                className="w-full"
+              />
+            </div>
+
+            {/* Replace Image Button */}
+            <Button
+              onClick={() => fileInputRef.current?.click()}
+              variant="outline"
+              className="w-full"
+              disabled={isUploading}
+            >
+              <ArrowUpTrayIcon className="h-4 w-4 mr-2" />
+              {isUploading ? 'Uploading...' : 'Replace Image'}
+            </Button>
+          </div>
+        )}
       </TabsContent>
     </Tabs>
   );

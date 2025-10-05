@@ -176,8 +176,8 @@ export const ProjectContent: React.FC<ProjectContentProps> = (props) => {
 
         // Render the screenshot using the same logic as the editor
         await renderScreenshotToCanvas(canvas, {
-          sourceScreenshotUrl: image.sourceScreenshotUrl,
-          configuration: config,
+          sourceScreenshotUrl: image.sourceScreenshotUrl || '',
+          configuration: config as any, // Type assertion needed due to null/undefined differences
           device: device || 'iPhone',
           index: i, // Pass the screenshot index
           totalImages: generatedImages.length, // Pass total count for gradient interpolation

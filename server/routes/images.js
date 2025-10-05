@@ -11,6 +11,9 @@ router.post('/regenerate-image', requireAuth, imageController.regenerateImage);
 // Update image configuration and regenerate
 router.put('/update-image-config', requireAuth, imageController.updateImageConfig);
 
+// Upload background image
+router.post('/upload-background', requireAuth, upload.single('image'), imageController.uploadBackgroundImage);
+
 // Download generated images as ZIP
 router.get('/download/:projectId', requireAuth, imageController.downloadImages);
 

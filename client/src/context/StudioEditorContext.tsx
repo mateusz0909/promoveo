@@ -1,113 +1,27 @@
+/**
+ * Studio Editor Context - Refactored Version
+ * 
+ * Clean implementation using unified element model
+ */
+
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import type { GeneratedImage } from '@/types/project';
 import { useAuth } from './AuthContext';
-import { toast } from 'sonner';
-
-// Type definitions for editor state
-export type ElementType = 'heading' | 'subheading' | 'mockup' | null;
-
-export interface ScreenshotState {
-  id: string;
-  image: GeneratedImage;
-  heading: string;
-  subheading: string;
-  mockupPosition: { x: number; y: number };
-  mockupScale: number;
-  mockupRotation: number;
-  headingPosition: { x: number; y: number };
-  subheadingPosition: { x: number; y: number };
-  headingFontSize: number;
-  subheadingFontSize: number;
-  headingColor: string;
-  subheadingColor: string;
-  headingAlign: 'left' | 'center' | 'right';
-  subheadingAlign: 'left' | 'center' | 'right';
-  headingLetterSpacing: number;
-  subheadingLetterSpacing: number;
-  headingLineHeight: number;
-  subheadingLineHeight: number;
-  fontFamily: string;
-  theme: string;
-}
-
-export interface SelectionItem {
-  screenshotIndex: number;
-  elementType: 'heading' | 'subheading';
-}
-
-export interface SelectionState {
-  screenshotIndex: number | null; // Primary selection (for backward compatibility)
-  elementType: ElementType;
-  isEditing: boolean; // Whether text is being edited directly on canvas
-  multiSelect: SelectionItem[]; // Multiple selections for bulk editing
-}
-
-export interface ViewState {
-  zoom: number;
-  panX: number;
-  panY: number;
-}
-
-export interface GlobalSettings {
-  backgroundType: 'gradient' | 'solid' | 'image';
-  backgroundGradient: {
-    startColor: string;
-    endColor: string;
-    angle: number;
-  };
-  backgroundSolid: string;
-  deviceFrame: string; // 'iPhone 15 Pro', 'iPad Pro 13', etc.
-  showDeviceFrame: boolean;
-}
-
-interface StudioEditorContextType {
-  // State
-  screenshots: ScreenshotState[];
-  selection: SelectionState;
-  view: ViewState;
-  global: GlobalSettings;
-  isSaving: boolean;
-  
-  // Actions - Selection
-  selectElement: (screenshotIndex: number, elementType: ElementType, multiSelectMode?: boolean) => void;
-  clearSelection: () => void;
-  startEditing: () => void;
-  stopEditing: () => void;
-  
-  // Actions - Screenshot updates
-  updateScreenshotText: (index: number, field: 'heading' | 'subheading', value: string) => void;
-  updateScreenshotPosition: (index: number, element: 'heading' | 'subheading' | 'mockup', position: { x: number; y: number }) => void;
-  updateScreenshotScale: (index: number, scale: number) => void;
-  updateScreenshotRotation: (index: number, rotation: number) => void;
-  updateScreenshotFontSize: (index: number, field: 'heading' | 'subheading', size: number) => void;
-  updateScreenshotFont: (index: number, fontFamily: string) => void;
-  updateScreenshotTheme: (index: number, theme: string) => void;
-  updateScreenshotColor: (index: number, field: 'heading' | 'subheading', color: string) => void;
-  updateScreenshotAlign: (index: number, field: 'heading' | 'subheading', align: 'left' | 'center' | 'right') => void;
-  updateScreenshotLetterSpacing: (index: number, field: 'heading' | 'subheading', spacing: number) => void;
-  updateScreenshotLineHeight: (index: number, field: 'heading' | 'subheading', lineHeight: number) => void;
-  
-  // Actions - Bulk updates for multi-selection
-  updateScreenshotFontBulk: (fontFamily: string, selections: SelectionItem[]) => void;
-  updateScreenshotFontSizeBulk: (size: number, selections: SelectionItem[]) => void;
-  updateScreenshotColorBulk: (color: string, selections: SelectionItem[]) => void;
-  updateScreenshotAlignBulk: (align: 'left' | 'center' | 'right', selections: SelectionItem[]) => void;
-  updateScreenshotLetterSpacingBulk: (spacing: number, selections: SelectionItem[]) => void;
-  updateScreenshotLineHeightBulk: (lineHeight: number, selections: SelectionItem[]) => void;
-  
-  // Actions - View
-  setZoom: (zoom: number) => void;
-  setPan: (x: number, y: number) => void;
-  resetView: () => void;
-  
-  // Actions - Global settings
-  updateBackground: (settings: Partial<GlobalSettings>) => void;
-  updateDeviceFrame: (device: string) => void;
-  
-  // Utilities
-  getSelectedScreenshot: () => ScreenshotState | null;
-}
+import { useSelection } from './studio-editor/useSelectionNew';
+import { useTransform } from './studio-editor/useTransform';
+import { useView } from './studio-editor/useView';
+import { useGlobalSettings } from './studio-editor/useGlobalSettings';
+import { useElementManagement } from './studio-editor/useElementManagement';
+import { migrateLegacyScreenshots, convertToLegacyFormat } from './studio-editor/migration';
+import type {
+  ScreenshotState,
+  ViewState,
+  GlobalSettings,
+  Visual,
+  StudioEditorContextType,
+} from './studio-editor/types';
+import type { CanvasElement } from './studio-editor/elementTypes';
 
 const StudioEditorContext = createContext<StudioEditorContextType | undefined>(undefined);
 
@@ -125,52 +39,55 @@ export function StudioEditorProvider({
   deviceFrame = 'iPhone 15 Pro'
 }: StudioEditorProviderProps) {
   const { session } = useAuth();
-  const previousStateRef = useRef<string>(''); // Track previous state as JSON string
-  const previousSelectionRef = useRef<SelectionState | null>(null); // Track previous selection
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   
-  // Initialize screenshot states from GeneratedImage data
-  const [screenshots, setScreenshots] = useState<ScreenshotState[]>(() => 
-    initialScreenshots.map((img, index) => ({
+  // ============================================================================
+  // Initialize Screenshots with Migration
+  // ============================================================================
+  
+  const [screenshots, setScreenshots] = useState<ScreenshotState[]>(() => {
+    // Convert GeneratedImage[] to legacy format first
+    const legacyData = initialScreenshots.map((img, index) => ({
       id: img.id || `screenshot-${index}`,
       image: img,
-      heading: img.configuration?.heading || 'Tap to edit',
-      subheading: img.configuration?.subheading || 'Tap to add subheading',
+      heading: img.configuration?.heading ?? '',
+      subheading: img.configuration?.subheading ?? '',
       mockupPosition: { 
-        x: img.configuration?.mockupX || 0, 
-        y: img.configuration?.mockupY || 0 
+        x: img.configuration?.mockupX ?? 0, 
+        y: img.configuration?.mockupY ?? 0 
       },
-      mockupScale: img.configuration?.mockupScale || 1,
-      mockupRotation: img.configuration?.mockupRotation || 0,
+      mockupScale: img.configuration?.mockupScale ?? 1,
+      mockupRotation: img.configuration?.mockupRotation ?? 0,
       headingPosition: { 
-        x: img.configuration?.headingX || 100, 
-        y: img.configuration?.headingY || 100 
+        x: img.configuration?.headingX ?? 100, 
+        y: img.configuration?.headingY ?? 100 
       },
       subheadingPosition: { 
-        x: img.configuration?.subheadingX || 100, 
-        y: img.configuration?.subheadingY || 200 
+        x: img.configuration?.subheadingX ?? 100, 
+        y: img.configuration?.subheadingY ?? 200 
       },
-      headingFontSize: img.configuration?.headingFontSize || 64,
-      subheadingFontSize: img.configuration?.subheadingFontSize || 32,
-      headingColor: img.configuration?.headingColor || '#ffffff',
-      subheadingColor: img.configuration?.subheadingColor || '#ffffff',
-      headingAlign: (img.configuration?.headingAlign as 'left' | 'center' | 'right') || 'left',
-      subheadingAlign: (img.configuration?.subheadingAlign as 'left' | 'center' | 'right') || 'left',
-      headingLetterSpacing: img.configuration?.headingLetterSpacing || 0,
-      subheadingLetterSpacing: img.configuration?.subheadingLetterSpacing || 0,
-      headingLineHeight: img.configuration?.headingLineHeight || 1.2,
-      subheadingLineHeight: img.configuration?.subheadingLineHeight || 1.2,
-      fontFamily: img.configuration?.headingFont || 'Inter',
-      theme: img.configuration?.theme || 'light',
-    }))
-  );
-
-  const [selection, setSelection] = useState<SelectionState>({
-    screenshotIndex: null,
-    elementType: null,
-    isEditing: false,
-    multiSelect: [],
+      headingFontSize: img.configuration?.headingFontSize ?? 64,
+      subheadingFontSize: img.configuration?.subheadingFontSize ?? 32,
+      headingColor: img.configuration?.headingColor ?? '#ffffff',
+      subheadingColor: img.configuration?.subheadingColor ?? '#ffffff',
+      headingAlign: (img.configuration?.headingAlign as 'left' | 'center' | 'right') ?? 'left',
+      subheadingAlign: (img.configuration?.subheadingAlign as 'left' | 'center' | 'right') ?? 'left',
+      headingLetterSpacing: img.configuration?.headingLetterSpacing ?? 0,
+      subheadingLetterSpacing: img.configuration?.subheadingLetterSpacing ?? 0,
+      headingLineHeight: img.configuration?.headingLineHeight ?? 1.2,
+      subheadingLineHeight: img.configuration?.subheadingLineHeight ?? 1.2,
+      fontFamily: img.configuration?.headingFont ?? 'Inter',
+      theme: img.configuration?.theme ?? 'light',
+    }));
+    
+    // Migrate to new unified format
+    return migrateLegacyScreenshots(legacyData);
   });
+
+  // ============================================================================
+  // Initialize Other State
+  // ============================================================================
 
   const [view, setView] = useState<ViewState>({
     zoom: 1,
@@ -179,7 +96,6 @@ export function StudioEditorProvider({
   });
 
   const [global, setGlobal] = useState<GlobalSettings>(() => {
-    // Try to load global settings from first screenshot's configuration
     const firstImage = initialScreenshots[0];
     const config = firstImage?.configuration;
     
@@ -188,501 +104,301 @@ export function StudioEditorProvider({
       backgroundGradient: {
         startColor: config?.backgroundGradient?.startColor || '#667eea',
         endColor: config?.backgroundGradient?.endColor || '#764ba2',
-        angle: config?.backgroundGradient?.angle ?? 90, // Use nullish coalescing to allow 0
+        angle: config?.backgroundGradient?.angle ?? 90,
       },
       backgroundSolid: config?.backgroundSolid || '#ffffff',
+      backgroundImage: {
+        url: config?.backgroundImage?.url || '',
+        fit: (config?.backgroundImage?.fit as 'cover' | 'contain' | 'fill' | 'tile') || 'cover',
+        opacity: config?.backgroundImage?.opacity ?? 1,
+      },
       deviceFrame,
       showDeviceFrame: true,
     };
   });
 
-  // Selection actions
-  const selectElement = useCallback((screenshotIndex: number, elementType: ElementType, multiSelectMode = false) => {
-    if (multiSelectMode && elementType !== 'mockup') {
-      // Multi-select mode (Cmd/Ctrl+Click)
-      setSelection(prev => {
-        const newItem: SelectionItem = { screenshotIndex, elementType: elementType as 'heading' | 'subheading' };
-        
-        // Check if this item is already selected
-        const existingIndex = prev.multiSelect.findIndex(
-          item => item.screenshotIndex === screenshotIndex && item.elementType === elementType
-        );
-        
-        if (existingIndex >= 0) {
-          // Deselect if already selected
-          const newMultiSelect = prev.multiSelect.filter((_, i) => i !== existingIndex);
-          if (newMultiSelect.length === 0) {
-            // If no more selections, clear everything
-            return { screenshotIndex: null, elementType: null, isEditing: false, multiSelect: [] };
-          }
-          // Set primary selection to the first remaining item
-          return {
-            screenshotIndex: newMultiSelect[0].screenshotIndex,
-            elementType: newMultiSelect[0].elementType,
-            isEditing: false,
-            multiSelect: newMultiSelect,
-          };
-        } else {
-          // Add to selection
-          const newMultiSelect = [...prev.multiSelect, newItem];
-          return {
-            screenshotIndex, // Set as primary selection
-            elementType,
-            isEditing: false,
-            multiSelect: newMultiSelect,
-          };
-        }
-      });
-    } else {
-      // Single select mode
-      if (elementType === 'mockup' || elementType === null) {
-        setSelection({ screenshotIndex, elementType, isEditing: false, multiSelect: [] });
-      } else {
-        // For text elements, start with one item in multiSelect
-        setSelection({
-          screenshotIndex,
-          elementType,
-          isEditing: false,
-          multiSelect: [{ screenshotIndex, elementType: elementType as 'heading' | 'subheading' }],
-        });
-      }
-    }
-  }, []);
+  const [visuals, setVisuals] = useState<Visual[]>([]);
 
-  const clearSelection = useCallback(() => {
-    setSelection({ screenshotIndex: null, elementType: null, isEditing: false, multiSelect: [] });
-  }, []);
+  // ============================================================================
+  // Initialize Hooks
+  // ============================================================================
 
-  const startEditing = useCallback(() => {
-    setSelection(prev => ({ ...prev, isEditing: true }));
-  }, []);
+  const selectionHooks = useSelection();
+  const transformHooks = useTransform(setScreenshots);
+  const viewHooks = useView(setView);
+  const globalHooks = useGlobalSettings(setGlobal);
+  const elementHooks = useElementManagement(
+    screenshots,
+    setScreenshots,
+    selectionHooks.clearSelection
+  );
 
-  const stopEditing = useCallback(() => {
-    setSelection(prev => ({ ...prev, isEditing: false }));
-  }, []);
+  // ============================================================================
+  // Auto-Save Logic
+  // ============================================================================
 
-  // Screenshot update actions
-  const updateScreenshotText = useCallback((index: number, field: 'heading' | 'subheading', value: string) => {
-    setScreenshots(prev => prev.map((s, i) => 
-      i === index ? { ...s, [field]: value } : s
-    ));
-  }, []);
-
-  const updateScreenshotPosition = useCallback((
-    index: number, 
-    element: 'heading' | 'subheading' | 'mockup', 
-    position: { x: number; y: number }
-  ) => {
-    setScreenshots(prev => prev.map((s, i) => 
-      i === index 
-        ? { ...s, [`${element}Position`]: position }
-        : s
-    ));
-  }, []);
-
-  const updateScreenshotScale = useCallback((index: number, scale: number) => {
-    setScreenshots(prev => prev.map((s, i) => 
-      i === index ? { ...s, mockupScale: scale } : s
-    ));
-  }, []);
-
-  const updateScreenshotRotation = useCallback((index: number, rotation: number) => {
-    setScreenshots(prev => prev.map((s, i) => 
-      i === index ? { ...s, mockupRotation: rotation } : s
-    ));
-  }, []);
-
-  const updateScreenshotFontSize = useCallback((index: number, field: 'heading' | 'subheading', size: number) => {
-    setScreenshots(prev => prev.map((s, i) => 
-      i === index ? { ...s, [`${field}FontSize`]: size } : s
-    ));
-  }, []);
-
-  const updateScreenshotFont = useCallback((index: number, fontFamily: string) => {
-    setScreenshots(prev => prev.map((s, i) => 
-      i === index ? { ...s, fontFamily } : s
-    ));
-  }, []);
-
-  // Bulk update font for multi-selection
-  const updateScreenshotFontBulk = useCallback((fontFamily: string, selections: SelectionItem[]) => {
-    const indices = new Set(selections.map(s => s.screenshotIndex));
-    setScreenshots(prev => prev.map((s, i) => 
-      indices.has(i) ? { ...s, fontFamily } : s
-    ));
-  }, []);
-
-  // Bulk update font size for multi-selection
-  const updateScreenshotFontSizeBulk = useCallback((size: number, selections: SelectionItem[]) => {
-    // Group selections by screenshot index to handle multiple elements per screenshot
-    const updatesByIndex = new Map<number, Set<'heading' | 'subheading'>>();
-    selections.forEach(s => {
-      if (!updatesByIndex.has(s.screenshotIndex)) {
-        updatesByIndex.set(s.screenshotIndex, new Set());
-      }
-      updatesByIndex.get(s.screenshotIndex)!.add(s.elementType);
-    });
-    
-    setScreenshots(prev => prev.map((s, i) => {
-      const elements = updatesByIndex.get(i);
-      if (!elements) return s;
-      
-      const updates: any = {};
-      elements.forEach(elementType => {
-        updates[`${elementType}FontSize`] = size;
-      });
-      
-      return { ...s, ...updates };
-    }));
-  }, []);
-
-  const updateScreenshotTheme = useCallback((index: number, theme: string) => {
-    setScreenshots(prev => prev.map((s, i) => 
-      i === index ? { ...s, theme } : s
-    ));
-  }, []);
-
-  const updateScreenshotColor = useCallback((index: number, field: 'heading' | 'subheading', color: string) => {
-    setScreenshots(prev => prev.map((s, i) => {
-      if (i !== index) return s;
-      return {
-        ...s,
-        [field === 'heading' ? 'headingColor' : 'subheadingColor']: color
-      };
-    }));
-  }, []);
-
-  // Bulk update color for multi-selection
-  const updateScreenshotColorBulk = useCallback((color: string, selections: SelectionItem[]) => {
-    // Group selections by screenshot index to handle multiple elements per screenshot
-    const updatesByIndex = new Map<number, Set<'heading' | 'subheading'>>();
-    selections.forEach(s => {
-      if (!updatesByIndex.has(s.screenshotIndex)) {
-        updatesByIndex.set(s.screenshotIndex, new Set());
-      }
-      updatesByIndex.get(s.screenshotIndex)!.add(s.elementType);
-    });
-    
-    setScreenshots(prev => prev.map((s, i) => {
-      const elements = updatesByIndex.get(i);
-      if (!elements) return s;
-      
-      const updates: any = {};
-      elements.forEach(elementType => {
-        updates[elementType === 'heading' ? 'headingColor' : 'subheadingColor'] = color;
-      });
-      
-      return { ...s, ...updates };
-    }));
-  }, []);
-
-  const updateScreenshotAlign = useCallback((index: number, field: 'heading' | 'subheading', align: 'left' | 'center' | 'right') => {
-    setScreenshots(prev => prev.map((s, i) => {
-      if (i !== index) return s;
-      return {
-        ...s,
-        [field === 'heading' ? 'headingAlign' : 'subheadingAlign']: align
-      };
-    }));
-  }, []);
-
-  // Bulk update alignment for multi-selection
-  const updateScreenshotAlignBulk = useCallback((align: 'left' | 'center' | 'right', selections: SelectionItem[]) => {
-    // Group selections by screenshot index to handle multiple elements per screenshot
-    const updatesByIndex = new Map<number, Set<'heading' | 'subheading'>>();
-    selections.forEach(s => {
-      if (!updatesByIndex.has(s.screenshotIndex)) {
-        updatesByIndex.set(s.screenshotIndex, new Set());
-      }
-      updatesByIndex.get(s.screenshotIndex)!.add(s.elementType);
-    });
-    
-    setScreenshots(prev => prev.map((s, i) => {
-      const elements = updatesByIndex.get(i);
-      if (!elements) return s;
-      
-      const updates: any = {};
-      elements.forEach(elementType => {
-        updates[elementType === 'heading' ? 'headingAlign' : 'subheadingAlign'] = align;
-      });
-      
-      return { ...s, ...updates };
-    }));
-  }, []);
-
-  const updateScreenshotLetterSpacing = useCallback((index: number, field: 'heading' | 'subheading', spacing: number) => {
-    setScreenshots(prev => prev.map((s, i) => {
-      if (i !== index) return s;
-      return {
-        ...s,
-        [field === 'heading' ? 'headingLetterSpacing' : 'subheadingLetterSpacing']: spacing
-      };
-    }));
-  }, []);
-
-  // Bulk update letter spacing for multi-selection
-  const updateScreenshotLetterSpacingBulk = useCallback((spacing: number, selections: SelectionItem[]) => {
-    // Group selections by screenshot index to handle multiple elements per screenshot
-    const updatesByIndex = new Map<number, Set<'heading' | 'subheading'>>();
-    selections.forEach(s => {
-      if (!updatesByIndex.has(s.screenshotIndex)) {
-        updatesByIndex.set(s.screenshotIndex, new Set());
-      }
-      updatesByIndex.get(s.screenshotIndex)!.add(s.elementType);
-    });
-    
-    setScreenshots(prev => prev.map((s, i) => {
-      const elements = updatesByIndex.get(i);
-      if (!elements) return s;
-      
-      const updates: any = {};
-      elements.forEach(elementType => {
-        updates[elementType === 'heading' ? 'headingLetterSpacing' : 'subheadingLetterSpacing'] = spacing;
-      });
-      
-      return { ...s, ...updates };
-    }));
-  }, []);
-
-  const updateScreenshotLineHeight = useCallback((index: number, field: 'heading' | 'subheading', lineHeight: number) => {
-    setScreenshots(prev => prev.map((s, i) => {
-      if (i !== index) return s;
-      return {
-        ...s,
-        [field === 'heading' ? 'headingLineHeight' : 'subheadingLineHeight']: lineHeight
-      };
-    }));
-  }, []);
-
-  // Bulk update line height for multi-selection
-  const updateScreenshotLineHeightBulk = useCallback((lineHeight: number, selections: SelectionItem[]) => {
-    // Group selections by screenshot index to handle multiple elements per screenshot
-    const updatesByIndex = new Map<number, Set<'heading' | 'subheading'>>();
-    selections.forEach(s => {
-      if (!updatesByIndex.has(s.screenshotIndex)) {
-        updatesByIndex.set(s.screenshotIndex, new Set());
-      }
-      updatesByIndex.get(s.screenshotIndex)!.add(s.elementType);
-    });
-    
-    setScreenshots(prev => prev.map((s, i) => {
-      const elements = updatesByIndex.get(i);
-      if (!elements) return s;
-      
-      const updates: any = {};
-      elements.forEach(elementType => {
-        updates[elementType === 'heading' ? 'headingLineHeight' : 'subheadingLineHeight'] = lineHeight;
-      });
-      
-      return { ...s, ...updates };
-    }));
-  }, []);
-
-  // View actions
-  const setZoom = useCallback((zoom: number) => {
-    setView(prev => ({ ...prev, zoom }));
-  }, []);
-
-  const setPan = useCallback((x: number, y: number) => {
-    setView(prev => ({ ...prev, panX: x, panY: y }));
-  }, []);
-
-  const resetView = useCallback(() => {
-    setView({ zoom: 1, panX: 0, panY: 0 });
-  }, []);
-
-  // Global settings actions
-  const updateBackground = useCallback((settings: Partial<GlobalSettings>) => {
-    setGlobal(prev => ({ ...prev, ...settings }));
-  }, []);
-
-  const updateDeviceFrame = useCallback((device: string) => {
-    setGlobal(prev => ({ ...prev, deviceFrame: device }));
-  }, []);
-
-  // Utilities
-  const getSelectedScreenshot = useCallback(() => {
-    if (selection.screenshotIndex === null) return null;
-    return screenshots[selection.screenshotIndex] || null;
-  }, [selection.screenshotIndex, screenshots]);
-
-  // Auto-save configuration to database
-  const saveConfiguration = useCallback(async () => {
-    console.log('💾 saveConfiguration called', { 
-      hasSession: !!session?.access_token, 
-      projectId,
-      screenshotCount: screenshots.length 
-    });
-    
-    if (!session?.access_token || !projectId) {
-      console.warn('⚠️ Missing session or projectId, skipping save');
+  useEffect(() => {
+    // Skip auto-save on initial mount
+    if (autoSaveTimeoutRef.current === undefined) {
+      autoSaveTimeoutRef.current = null as any;
       return;
     }
-    
-    setIsSaving(true);
-    
-    try {
-      // Save each screenshot's configuration with display order
-      await Promise.all(
-        screenshots.map(async (screenshot, index) => {
-          const configuration = {
-            heading: screenshot.heading,
-            subheading: screenshot.subheading,
-            headingFont: screenshot.fontFamily,
-            subheadingFont: screenshot.fontFamily,
-            headingFontSize: screenshot.headingFontSize,
-            subheadingFontSize: screenshot.subheadingFontSize,
-            headingColor: screenshot.headingColor,
-            subheadingColor: screenshot.subheadingColor,
-            headingAlign: screenshot.headingAlign,
-            subheadingAlign: screenshot.subheadingAlign,
-            headingLetterSpacing: screenshot.headingLetterSpacing,
-            subheadingLetterSpacing: screenshot.subheadingLetterSpacing,
-            headingLineHeight: screenshot.headingLineHeight,
-            subheadingLineHeight: screenshot.subheadingLineHeight,
-            mockupX: screenshot.mockupPosition.x,
-            mockupY: screenshot.mockupPosition.y,
-            mockupScale: screenshot.mockupScale,
-            mockupRotation: screenshot.mockupRotation,
-            headingX: screenshot.headingPosition.x,
-            headingY: screenshot.headingPosition.y,
-            subheadingX: screenshot.subheadingPosition.x,
-            subheadingY: screenshot.subheadingPosition.y,
-            theme: screenshot.theme,
-            // Global settings
-            deviceFrame: global.deviceFrame,
-            backgroundType: global.backgroundType,
-            backgroundGradient: global.backgroundGradient,
-            backgroundSolid: global.backgroundSolid,
-          };
 
+    // Clear existing timeout
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
+
+    // Debounced auto-save (2 seconds)
+    autoSaveTimeoutRef.current = setTimeout(async () => {
+      if (!session?.access_token) return;
+
+      setIsSaving(true);
+      
+      try {
+        // Save each screenshot
+        for (const screenshot of screenshots) {
+          // Convert to legacy format for API compatibility
+          const legacyData = convertToLegacyFormat(screenshot);
+          
+          console.log('Auto-save: Saving screenshot', screenshot.id, {
+            numElements: screenshot.elements.length,
+            configuration: legacyData.image.configuration
+          });
+          
           const response = await fetch(
             `http://localhost:3001/api/projects/${projectId}/images/${screenshot.id}`,
             {
               method: 'PUT',
               headers: {
-                'Authorization': `Bearer ${session.access_token}`,
                 'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`,
               },
-              body: JSON.stringify({ 
-                configuration,
-                displayOrder: index  // Preserve the order
+              body: JSON.stringify({
+                configuration: legacyData.image.configuration,
               }),
             }
           );
-
+          
           if (!response.ok) {
-            throw new Error(`Failed to save screenshot ${screenshot.id}`);
+            console.error('Auto-save failed for screenshot', screenshot.id, await response.text());
+          } else {
+            console.log('Auto-save successful for screenshot', screenshot.id);
           }
-        })
-      );
-      
-      console.log('Configuration saved successfully');
-      setIsSaving(false);
-    } catch (error) {
-      console.error('Error saving configuration:', error);
-      toast.error('Failed to save changes');
-      setIsSaving(false);
-    }
-  }, [screenshots, global, projectId, session]);
-
-  // Auto-save when global settings change (background, device frame, etc.)
-  useEffect(() => {
-    const isFirstRender = !previousStateRef.current;
-    if (isFirstRender) {
-      previousStateRef.current = JSON.stringify({ screenshots, global });
-      return;
-    }
-
-    const timeout = setTimeout(() => {
-      (async () => {
-        try {
-          await saveConfiguration();
-          console.log('✅ Global settings auto-saved');
-        } catch (error) {
-          console.error('❌ Auto-save failed:', error);
         }
-      })();
-    }, 2000); // 2 second debounce
+      } catch (error) {
+        console.error('Auto-save error:', error);
+      } finally {
+        setIsSaving(false);
+      }
+    }, 2000);
 
-    return () => clearTimeout(timeout);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [global]);
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, [screenshots, session, projectId]);
 
-  // Save on unfocus (when selection changes from something to null/nothing)
-  useEffect(() => {
-    // Initialize previous state on first render
-    if (!previousStateRef.current) {
-      previousStateRef.current = JSON.stringify({ screenshots, global });
-      previousSelectionRef.current = selection;
+  // ============================================================================
+  // Utility Functions
+  // ============================================================================
+
+  const getSelectedElement = useCallback((): CanvasElement | null => {
+    const { screenshotIndex, elementId } = selectionHooks.selection;
+    if (screenshotIndex === null || elementId === null) return null;
+    
+    const screenshot = screenshots[screenshotIndex];
+    if (!screenshot) return null;
+    
+    return screenshot.elements.find(el => el.id === elementId) || null;
+  }, [selectionHooks.selection.screenshotIndex, selectionHooks.selection.elementId, screenshots]);
+
+  const getSelectedScreenshot = useCallback((): ScreenshotState | null => {
+    const { screenshotIndex } = selectionHooks.selection;
+    if (screenshotIndex === null) return null;
+    return screenshots[screenshotIndex] || null;
+  }, [selectionHooks.selection.screenshotIndex, screenshots]);
+
+  const getElementsByKind = useCallback((
+    screenshotIndex: number,
+    kind: 'text' | 'mockup' | 'visual'
+  ): CanvasElement[] => {
+    const screenshot = screenshots[screenshotIndex];
+    if (!screenshot) return [];
+    
+    return screenshot.elements.filter(el => el.kind === kind);
+  }, [screenshots]);
+
+  // ============================================================================
+  // Screenshot Management
+  // ============================================================================
+
+  const addScreenshot = useCallback(async () => {
+    // TODO: Implement when needed
+    console.warn('addScreenshot not yet implemented');
+  }, []);
+
+  const removeScreenshot = useCallback(async (_index: number) => {
+    // TODO: Implement when needed
+    console.warn('removeScreenshot not yet implemented');
+  }, []);
+
+  const reorderScreenshots = useCallback(async (_fromIndex: number, _toIndex: number) => {
+    // TODO: Implement when needed
+    console.warn('reorderScreenshots not yet implemented');
+  }, []);
+
+  // ============================================================================
+  // Visual Library Management
+  // ============================================================================
+
+  const loadVisuals = useCallback(async () => {
+    if (!session?.access_token) return;
+
+    try {
+      const response = await fetch('http://localhost:3001/api/visuals', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setVisuals(data.visuals || []);
+      }
+    } catch (error) {
+      console.error('Error loading visuals:', error);
+    }
+  }, [session]);
+
+  const uploadVisual = useCallback(async (file: File) => {
+    if (!session?.access_token) {
+      console.error('No session available for visual upload');
       return;
     }
-    
-    // Check if we just unfocused (selection went from selected to null)
-    const wasSelected = previousSelectionRef.current?.elementType !== null;
-    const isNowUnselected = selection.elementType === null;
-    
-    // Update previous selection
-    previousSelectionRef.current = selection;
-    
-    // Only save if:
-    // 1. We just unfocused (was selected, now unselected)
-    // 2. Content actually changed
-    if (wasSelected && isNowUnselected) {
-      const currentState = JSON.stringify({ screenshots, global });
-      if (currentState !== previousStateRef.current) {
-        // Content changed, save it
-        console.log('🔄 Unfocus detected - triggering save...');
-        previousStateRef.current = currentState;
-        
-        // Call async save function
-        (async () => {
-          try {
-            await saveConfiguration();
-            console.log('✅ Save completed successfully');
-          } catch (error) {
-            console.error('❌ Save failed:', error);
-          }
-        })();
+
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      formData.append('name', file.name);
+      formData.append('category', 'custom');
+
+      const response = await fetch('http://localhost:3001/api/visuals', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to upload visual');
       }
+
+      const newVisual = await response.json();
+      setVisuals(prev => [newVisual, ...prev]);
+      
+      console.log('Visual uploaded successfully:', newVisual);
+    } catch (error) {
+      console.error('Error uploading visual:', error);
+      throw error;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selection]);
+  }, [session]);
+
+  const deleteVisual = useCallback(async (visualId: string) => {
+    if (!session?.access_token) {
+      console.error('No session available for visual deletion');
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:3001/api/visuals/${visualId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete visual');
+      }
+
+      setVisuals(prev => prev.filter(v => v.id !== visualId));
+      
+      console.log('Visual deleted successfully:', visualId);
+    } catch (error) {
+      console.error('Error deleting visual:', error);
+      throw error;
+    }
+  }, [session]);
+
+  // ============================================================================
+  // Font & Theme Management
+  // ============================================================================
+
+  const updateDefaultFont = useCallback((screenshotIndex: number, fontFamily: string) => {
+    setScreenshots(prev => prev.map((s, i) => 
+      i === screenshotIndex ? { ...s, fontFamily } : s
+    ));
+  }, []);
+
+  const updateTheme = useCallback((screenshotIndex: number, theme: string) => {
+    setScreenshots(prev => prev.map((s, i) => 
+      i === screenshotIndex ? { ...s, theme } : s
+    ));
+  }, []);
+
+  // ============================================================================
+  // Context Value
+  // ============================================================================
 
   const value: StudioEditorContextType = {
+    // State
     screenshots,
-    selection,
     view,
     global,
     isSaving,
-    selectElement,
-    clearSelection,
-    startEditing,
-    stopEditing,
-    updateScreenshotText,
-    updateScreenshotPosition,
-    updateScreenshotScale,
-    updateScreenshotRotation,
-    updateScreenshotFontSize,
-    updateScreenshotFont,
-    updateScreenshotTheme,
-    updateScreenshotColor,
-    updateScreenshotAlign,
-    updateScreenshotLetterSpacing,
-    updateScreenshotLineHeight,
-    updateScreenshotFontBulk,
-    updateScreenshotFontSizeBulk,
-    updateScreenshotColorBulk,
-    updateScreenshotAlignBulk,
-    updateScreenshotLetterSpacingBulk,
-    updateScreenshotLineHeightBulk,
-    setZoom,
-    setPan,
-    resetView,
-    updateBackground,
-    updateDeviceFrame,
+    visuals,
+    projectId,
+
+    // Selection (spread hooks which includes 'selection' state)
+    ...selectionHooks,
+
+    // Elements
+    ...elementHooks,
+
+    // Transform
+    ...transformHooks,
+
+    // Screenshot Management
+    addScreenshot,
+    removeScreenshot,
+    reorderScreenshots,
+
+    // View
+    ...viewHooks,
+
+    // Global Settings
+    ...globalHooks,
+    updateDefaultFont,
+    updateTheme,
+
+    // Visual Library
+    loadVisuals,
+    uploadVisual,
+    deleteVisual,
+
+    // Utilities
+    getSelectedElement,
     getSelectedScreenshot,
+    getElementsByKind,
   };
+
+  // Load visuals on mount
+  useEffect(() => {
+    loadVisuals();
+  }, [loadVisuals]);
 
   return (
     <StudioEditorContext.Provider value={value}>
@@ -698,3 +414,5 @@ export function useStudioEditor() {
   }
   return context;
 }
+
+export { StudioEditorContext };

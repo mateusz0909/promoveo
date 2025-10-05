@@ -44,6 +44,39 @@ interface RenderConfig {
     headingPosition?: { x: number; y: number };
     subheadingPosition?: { x: number; y: number };
     mockupPosition?: { x: number; y: number };
+    // Instance arrays (new architecture)
+    textInstances?: Array<{
+      id: string;
+      type: 'heading' | 'subheading';
+      text: string;
+      position: { x: number; y: number };
+      fontSize: number;
+      color: string;
+      align: 'left' | 'center' | 'right';
+      letterSpacing: number;
+      lineHeight: number;
+      fontFamily: string;
+    }>;
+    mockupInstances?: Array<{
+      id: string;
+      type: string;
+      sourceScreenshotUrl: string;
+      position: { x: number; y: number };
+      scale: number;
+      rotation: number;
+    }>;
+    visuals?: Array<{
+      id: string;
+      visualId: string;
+      imageUrl: string;
+      name: string;
+      width: number;
+      height: number;
+      position: { x: number; y: number };
+      scale: number;
+      rotation: number;
+      zIndex: number;
+    }>;
   };
   device?: string;
   index?: number; // Index of this screenshot
@@ -270,131 +303,300 @@ export async function renderScreenshotToCanvas(
   const finalSubheadingX = getTextX(config.configuration.subheadingAlign, actualSubheadingPosition.x);
   const finalSubheadingY = 400 + actualSubheadingPosition.y;
 
-  // Draw heading text with wrapping
-  if (heading) {
-    ctx.fillStyle = headingColor;
-    const scaledHeadingSize = headingFontSize * FONT_SCALE_MULTIPLIER;
-    ctx.font = `bold ${scaledHeadingSize}px ${actualFontFamily}`;
-    ctx.textAlign = (config.configuration.headingAlign || 'left') as CanvasTextAlign;
-    ctx.textBaseline = 'top';
+  // Check if we should use instance-based rendering or legacy single elements
+  const textInstances = config.configuration.textInstances || [];
+  const mockupInstances = config.configuration.mockupInstances || [];
+  
+  const useInstanceMode = textInstances.length > 0 || mockupInstances.length > 0;
+
+  if (useInstanceMode) {
+    // ========== INSTANCE-BASED RENDERING ==========
+    console.log(`Rendering ${textInstances.length} text instances and ${mockupInstances.length} mockup instances`);
     
-    // Apply letter spacing (convert percentage to em units)
-    const headingLetterSpacing = config.configuration.headingLetterSpacing || 0;
-    ctx.letterSpacing = `${headingLetterSpacing * 0.01}em`;
-    
-    const headingLines = wrapText(ctx, heading, maxTextWidth);
-    const headingLineHeight = scaledHeadingSize * (config.configuration.headingLineHeight || 1.2);
-    
-    headingLines.forEach((line, lineIndex) => {
-      ctx.fillText(line, finalHeadingX, finalHeadingY + (lineIndex * headingLineHeight));
+    // Draw text instances
+    textInstances.forEach((textInstance: any) => {
+      const text = textInstance.text;
+      if (!text || text === '') return;
+      
+      ctx.fillStyle = textInstance.color || '#ffffff';
+      const scaledFontSize = textInstance.fontSize * FONT_SCALE_MULTIPLIER;
+      const fontWeight = textInstance.type === 'heading' ? 'bold' : 'normal';
+      ctx.font = `${fontWeight} ${scaledFontSize}px ${textInstance.fontFamily || actualFontFamily}`;
+      ctx.textAlign = (textInstance.align || 'left') as CanvasTextAlign;
+      ctx.textBaseline = 'top';
+      
+      // Apply letter spacing
+      const letterSpacing = textInstance.letterSpacing || 0;
+      ctx.letterSpacing = `${letterSpacing * 0.01}em`;
+      
+      // Wrap and draw text
+      const lines = wrapText(ctx, text, maxTextWidth);
+      const lineHeight = scaledFontSize * (textInstance.lineHeight || 1.2);
+      
+      lines.forEach((line, lineIndex) => {
+        ctx.fillText(line, textInstance.position.x, textInstance.position.y + (lineIndex * lineHeight));
+      });
+      
+      // Reset letter spacing
+      ctx.letterSpacing = '0px';
     });
-    
-    // Reset letter spacing
-    ctx.letterSpacing = '0px';
-  }
-
-  // Draw subheading text with wrapping
-  if (subheading) {
-    ctx.fillStyle = subheadingColor;
-    const scaledSubheadingSize = subheadingFontSize * FONT_SCALE_MULTIPLIER;
-    ctx.font = `${scaledSubheadingSize}px ${actualFontFamily}`;
-    ctx.textAlign = (config.configuration.subheadingAlign || 'left') as CanvasTextAlign;
-    ctx.textBaseline = 'top';
-    
-    // Apply letter spacing (convert percentage to em units)
-    const subheadingLetterSpacing = config.configuration.subheadingLetterSpacing || 0;
-    ctx.letterSpacing = `${subheadingLetterSpacing * 0.01}em`;
-    
-    const subheadingLines = wrapText(ctx, subheading, maxTextWidth);
-    const subheadingLineHeight = scaledSubheadingSize * (config.configuration.subheadingLineHeight || 1.2);
-    
-    subheadingLines.forEach((line, lineIndex) => {
-      ctx.fillText(line, finalSubheadingX, finalSubheadingY + (lineIndex * subheadingLineHeight));
-    });
-    
-    // Reset letter spacing
-    ctx.letterSpacing = '0px';
-  }
-
-  // Load and draw screenshot with rotation
-  try {
-    const screenshotImg = await loadImage(config.sourceScreenshotUrl);
-    
-    const radius = 40 * mockupScale;
-    const innerPadding = 20 * mockupScale;
-    
-    // Calculate center point for rotation
-    const centerX = finalMockupX + mockupWidth / 2;
-    const centerY = finalMockupY + mockupHeight / 2;
-    
-    ctx.save();
-    
-    // Apply rotation transformation
-    if (mockupRotation !== 0) {
-      ctx.translate(centerX, centerY);
-      ctx.rotate((mockupRotation * Math.PI) / 180);
-      ctx.translate(-centerX, -centerY);
+  } else {
+    // ========== LEGACY SINGLE-ELEMENT RENDERING ==========
+    // Draw heading text with wrapping
+    if (heading) {
+      ctx.fillStyle = headingColor;
+      const scaledHeadingSize = headingFontSize * FONT_SCALE_MULTIPLIER;
+      ctx.font = `bold ${scaledHeadingSize}px ${actualFontFamily}`;
+      ctx.textAlign = (config.configuration.headingAlign || 'left') as CanvasTextAlign;
+      ctx.textBaseline = 'top';
+      
+      // Apply letter spacing (convert percentage to em units)
+      const headingLetterSpacing = config.configuration.headingLetterSpacing || 0;
+      ctx.letterSpacing = `${headingLetterSpacing * 0.01}em`;
+      
+      const headingLines = wrapText(ctx, heading, maxTextWidth);
+      const headingLineHeight = scaledHeadingSize * (config.configuration.headingLineHeight || 1.2);
+      
+      headingLines.forEach((line, lineIndex) => {
+        ctx.fillText(line, finalHeadingX, finalHeadingY + (lineIndex * headingLineHeight));
+      });
+      
+      // Reset letter spacing
+      ctx.letterSpacing = '0px';
     }
-    
-    ctx.beginPath();
-    ctx.roundRect(
-      finalMockupX + innerPadding,
-      finalMockupY + innerPadding,
-      mockupWidth - innerPadding * 2,
-      mockupHeight - innerPadding * 2,
-      radius
-    );
-    ctx.clip();
-    
-    ctx.drawImage(
-      screenshotImg,
-      finalMockupX + innerPadding,
-      finalMockupY + innerPadding,
-      mockupWidth - innerPadding * 2,
-      mockupHeight - innerPadding * 2
-    );
-    
-    ctx.restore();
-  } catch (error) {
-    console.error('Failed to load screenshot:', error);
+
+    // Draw subheading text with wrapping
+    if (subheading) {
+      ctx.fillStyle = subheadingColor;
+      const scaledSubheadingSize = subheadingFontSize * FONT_SCALE_MULTIPLIER;
+      ctx.font = `${scaledSubheadingSize}px ${actualFontFamily}`;
+      ctx.textAlign = (config.configuration.subheadingAlign || 'left') as CanvasTextAlign;
+      ctx.textBaseline = 'top';
+      
+      // Apply letter spacing (convert percentage to em units)
+      const subheadingLetterSpacing = config.configuration.subheadingLetterSpacing || 0;
+      ctx.letterSpacing = `${subheadingLetterSpacing * 0.01}em`;
+      
+      const subheadingLines = wrapText(ctx, subheading, maxTextWidth);
+      const subheadingLineHeight = scaledSubheadingSize * (config.configuration.subheadingLineHeight || 1.2);
+      
+      subheadingLines.forEach((line, lineIndex) => {
+        ctx.fillText(line, finalSubheadingX, finalSubheadingY + (lineIndex * subheadingLineHeight));
+      });
+      
+      // Reset letter spacing
+      ctx.letterSpacing = '0px';
+    }
   }
 
-  // Load and draw device frame with rotation
-  try {
-    // Map device frame names to file paths (same as MultiScreenshotCanvas)
-    const frameFiles: Record<string, string> = {
-      'iPhone 15 Pro': '/iphone_15_frame.png',
-      'iPhone 15': '/iphone_15_frame.png',
-      'iPhone 14 Pro': '/iphone_15_frame.png',
-      'iPad Pro 13': '/iPad Pro 13 Frame.png',
-      'iPad Pro 11': '/iPad Pro 13 Frame.png',
-    };
-    
-    const frameUrl = frameFiles[deviceFrame] || '/iphone_15_frame.png';
-    const frameImg = await loadImage(frameUrl);
-    
-    // Calculate center point for rotation
-    const centerX = finalMockupX + mockupWidth / 2;
-    const centerY = finalMockupY + mockupHeight / 2;
-    
-    ctx.save();
-    
-    // Apply rotation transformation
-    if (mockupRotation !== 0) {
-      ctx.translate(centerX, centerY);
-      ctx.rotate((mockupRotation * Math.PI) / 180);
-      ctx.translate(-centerX, -centerY);
+  // ========== MOCKUP RENDERING ==========
+  if (useInstanceMode && mockupInstances.length > 0) {
+    // Instance-based: render all mockup instances
+    for (const mockupInstance of mockupInstances) {
+      const mockupWidth = 700 * mockupInstance.scale;
+      const mockupHeight = 1400 * mockupInstance.scale;
+      const finalMockupX = (CANVAS_WIDTH - mockupWidth) / 2 + mockupInstance.position.x;
+      const finalMockupY = (CANVAS_HEIGHT - mockupHeight) / 2 + mockupInstance.position.y;
+      
+      // Load and draw screenshot with rotation
+      try {
+        const screenshotImg = await loadImage(config.sourceScreenshotUrl);
+        
+        const radius = 40 * mockupInstance.scale;
+        const innerPadding = 20 * mockupInstance.scale;
+        
+        // Calculate center point for rotation
+        const centerX = finalMockupX + mockupWidth / 2;
+        const centerY = finalMockupY + mockupHeight / 2;
+        
+        ctx.save();
+        
+        // Apply rotation transformation
+        if (mockupInstance.rotation !== 0) {
+          ctx.translate(centerX, centerY);
+          ctx.rotate((mockupInstance.rotation * Math.PI) / 180);
+          ctx.translate(-centerX, -centerY);
+        }
+        
+        ctx.beginPath();
+        ctx.roundRect(
+          finalMockupX + innerPadding,
+          finalMockupY + innerPadding,
+          mockupWidth - innerPadding * 2,
+          mockupHeight - innerPadding * 2,
+          radius
+        );
+        ctx.clip();
+        
+        ctx.drawImage(
+          screenshotImg,
+          finalMockupX + innerPadding,
+          finalMockupY + innerPadding,
+          mockupWidth - innerPadding * 2,
+          mockupHeight - innerPadding * 2
+        );
+        
+        ctx.restore();
+      } catch (error) {
+        console.error('Failed to load screenshot for mockup instance:', error);
+      }
+
+      // Load and draw device frame with rotation
+      try {
+        const frameFiles: Record<string, string> = {
+          'iPhone 15 Pro': '/iphone_15_frame.png',
+          'iPhone 15': '/iphone_15_frame.png',
+          'iPhone 14 Pro': '/iphone_15_frame.png',
+          'iPad Pro 13': '/iPad Pro 13 Frame.png',
+          'iPad Pro 11': '/iPad Pro 13 Frame.png',
+        };
+        
+        const frameUrl = frameFiles[deviceFrame] || '/iphone_15_frame.png';
+        const frameImg = await loadImage(frameUrl);
+        
+        // Calculate center point for rotation
+        const centerX = finalMockupX + mockupWidth / 2;
+        const centerY = finalMockupY + mockupHeight / 2;
+        
+        ctx.save();
+        
+        // Apply rotation transformation
+        if (mockupInstance.rotation !== 0) {
+          ctx.translate(centerX, centerY);
+          ctx.rotate((mockupInstance.rotation * Math.PI) / 180);
+          ctx.translate(-centerX, -centerY);
+        }
+        
+        ctx.drawImage(frameImg, finalMockupX, finalMockupY, mockupWidth, mockupHeight);
+        ctx.restore();
+      } catch (error) {
+        console.error('Failed to load device frame for mockup instance:', error);
+      }
     }
+  } else {
+    // Legacy single mockup rendering
+    // Load and draw screenshot with rotation
+    try {
+      const screenshotImg = await loadImage(config.sourceScreenshotUrl);
+      
+      const radius = 40 * mockupScale;
+      const innerPadding = 20 * mockupScale;
+      
+      // Calculate center point for rotation
+      const centerX = finalMockupX + mockupWidth / 2;
+      const centerY = finalMockupY + mockupHeight / 2;
+      
+      ctx.save();
+      
+      // Apply rotation transformation
+      if (mockupRotation !== 0) {
+        ctx.translate(centerX, centerY);
+        ctx.rotate((mockupRotation * Math.PI) / 180);
+        ctx.translate(-centerX, -centerY);
+      }
+      
+      ctx.beginPath();
+      ctx.roundRect(
+        finalMockupX + innerPadding,
+        finalMockupY + innerPadding,
+        mockupWidth - innerPadding * 2,
+        mockupHeight - innerPadding * 2,
+        radius
+      );
+      ctx.clip();
+      
+      ctx.drawImage(
+        screenshotImg,
+        finalMockupX + innerPadding,
+        finalMockupY + innerPadding,
+        mockupWidth - innerPadding * 2,
+        mockupHeight - innerPadding * 2
+      );
+      
+      ctx.restore();
+    } catch (error) {
+      console.error('Failed to load screenshot:', error);
+    }
+
+    // Load and draw device frame with rotation
+    try {
+      // Map device frame names to file paths (same as MultiScreenshotCanvas)
+      const frameFiles: Record<string, string> = {
+        'iPhone 15 Pro': '/iphone_15_frame.png',
+        'iPhone 15': '/iphone_15_frame.png',
+        'iPhone 14 Pro': '/iphone_15_frame.png',
+        'iPad Pro 13': '/iPad Pro 13 Frame.png',
+        'iPad Pro 11': '/iPad Pro 13 Frame.png',
+      };
+      
+      const frameUrl = frameFiles[deviceFrame] || '/iphone_15_frame.png';
+      const frameImg = await loadImage(frameUrl);
+      
+      // Calculate center point for rotation
+      const centerX = finalMockupX + mockupWidth / 2;
+      const centerY = finalMockupY + mockupHeight / 2;
+      
+      ctx.save();
+      
+      // Apply rotation transformation
+      if (mockupRotation !== 0) {
+        ctx.translate(centerX, centerY);
+        ctx.rotate((mockupRotation * Math.PI) / 180);
+        ctx.translate(-centerX, -centerY);
+      }
     
-    ctx.drawImage(frameImg, finalMockupX, finalMockupY, mockupWidth, mockupHeight);
-    ctx.restore();
-  } catch (error) {
-    console.error('Failed to load device frame, using fallback border:', error);
-    // Fallback: draw a simple frame
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
-    ctx.lineWidth = 8 * mockupScale;
-    ctx.beginPath();
-    ctx.roundRect(finalMockupX, finalMockupY, mockupWidth, mockupHeight, 40 * mockupScale);
-    ctx.stroke();
+      
+      ctx.drawImage(frameImg, finalMockupX, finalMockupY, mockupWidth, mockupHeight);
+      ctx.restore();
+    } catch (error) {
+      console.error('Failed to load device frame, using fallback border:', error);
+      // Fallback: draw a simple frame
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
+      ctx.lineWidth = 8 * mockupScale;
+      ctx.beginPath();
+      ctx.roundRect(finalMockupX, finalMockupY, mockupWidth, mockupHeight, 40 * mockupScale);
+      ctx.stroke();
+    }
+  }
+  // ========== END MOCKUP RENDERING ==========  // Draw custom visuals from configuration
+  const visuals = config.configuration.visuals || [];
+  if (visuals.length > 0) {
+    // Sort by zIndex to render in correct order
+    const sortedVisuals = [...visuals].sort((a, b) => a.zIndex - b.zIndex);
+    
+    for (const visual of sortedVisuals) {
+      try {
+        const visualImg = await loadImage(visual.imageUrl);
+        
+        // Save context state
+        ctx.save();
+
+        // Translate to visual position (center-based)
+        ctx.translate(visual.position.x, visual.position.y);
+
+        // Apply rotation (convert degrees to radians)
+        if (visual.rotation) {
+          ctx.rotate((visual.rotation * Math.PI) / 180);
+        }
+
+        // Calculate scaled dimensions using stored dimensions
+        const scaledWidth = visual.width * visual.scale;
+        const scaledHeight = visual.height * visual.scale;
+
+        // Draw centered on position
+        ctx.drawImage(
+          visualImg,
+          -scaledWidth / 2,
+          -scaledHeight / 2,
+          scaledWidth,
+          scaledHeight
+        );
+
+        // Restore context state
+        ctx.restore();
+      } catch (error) {
+        console.error('Failed to load visual:', visual.id, error);
+      }
+    }
   }
 }

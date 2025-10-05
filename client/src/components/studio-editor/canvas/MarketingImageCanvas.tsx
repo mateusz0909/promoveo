@@ -1,26 +1,45 @@
 /**
- * Individual marketing image canvas component
+ * Individual marketing image canvas component - Refactored with unified element system
+ * 
+ * This component renders a single marketing screenshot with:
+ * - Background (gradient or solid color)
+ * - All elements (text, mockups, visuals) in z-index order
+ * - Selection indicators for selected elements
+ * 
+ * Uses the new unified rendering pipeline from elementRenderer.ts
  */
 
 import { useRef, useEffect, useCallback, useState } from 'react';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from './utils';
 import { drawBackground } from './backgroundRenderer';
-import { drawText, drawTextSelection } from './textRenderer';
-import { drawMockup } from './mockupRenderer';
-import { getClickedElement } from './hitDetection';
+import { renderAllElements, renderSelectionIndicator } from './elementRenderer';
+import { getElementAtPoint } from './hitDetectionNew';
+import type { ScreenshotState } from '@/context/studio-editor/types';
 
 export interface MarketingImageCanvasProps {
-  screenshot: any;
+  screenshot: ScreenshotState;
   index: number;
   totalImages: number;
   isSelected: boolean;
   selectedElement: string | null;
   isEditing: boolean;
-  selectedElements: Set<'heading' | 'subheading'>;
-  onSelect: (index: number | null, elementType: any, multiSelectMode?: boolean) => void;
-  onUpdatePosition: (index: number, element: string, position: { x: number; y: number }) => void;
+  onSelect: (index: number | null, elementId: string | null, multiSelectMode?: boolean) => void;
+  onUpdatePosition: (index: number, elementId: string, position: { x: number; y: number }) => void;
   deviceFrameImage: HTMLImageElement | null;
-  global: any;
+  global: {
+    backgroundType: 'gradient' | 'solid' | 'image';
+    backgroundSolid: string;
+    backgroundGradient: {
+      startColor: string;
+      endColor: string;
+      angle: number;
+    };
+    backgroundImage?: {
+      url: string;
+      fit?: 'cover' | 'contain' | 'fill' | 'tile';
+      opacity?: number;
+    };
+  };
 }
 
 export function MarketingImageCanvas({ 
@@ -30,7 +49,6 @@ export function MarketingImageCanvas({
   isSelected, 
   selectedElement,
   isEditing,
-  selectedElements,
   onSelect,
   onUpdatePosition,
   deviceFrameImage,
@@ -38,6 +56,8 @@ export function MarketingImageCanvas({
 }: MarketingImageCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [screenshotImage, setScreenshotImage] = useState<HTMLImageElement | null>(null);
+  const [backgroundImage, setBackgroundImage] = useState<HTMLImageElement | null>(null);
+  const [imageCache] = useState<Map<string, HTMLImageElement>>(new Map());
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
 
@@ -54,7 +74,23 @@ export function MarketingImageCanvas({
     }
   }, [screenshot.image]);
 
-  // Draw the marketing image
+  // Load background image when URL changes
+  useEffect(() => {
+    if (global.backgroundType === 'image' && global.backgroundImage?.url) {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => setBackgroundImage(img);
+      img.onerror = () => {
+        console.error('Failed to load background image');
+        setBackgroundImage(null);
+      };
+      img.src = global.backgroundImage.url;
+    } else {
+      setBackgroundImage(null);
+    }
+  }, [global.backgroundType, global.backgroundImage?.url]);
+
+  // Main render effect - uses unified rendering pipeline
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -68,93 +104,64 @@ export function MarketingImageCanvas({
     // Clear canvas
     ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    // Draw background
-    drawBackground(ctx, global, CANVAS_WIDTH, CANVAS_HEIGHT, index, totalImages);
+    // Async render function
+    (async () => {
+      try {
+        // Step 1: Draw background
+        // Cast to BackgroundConfig - the global object comes from context with all required fields
+        drawBackground(
+          ctx, 
+          global as any, // TODO: Type properly once global state types are unified
+          CANVAS_WIDTH, 
+          CANVAS_HEIGHT, 
+          index, 
+          totalImages, 
+          backgroundImage
+        );
 
-    // Draw heading text (skip if editing)
-    const isEditingHeading = isEditing && selectedElement === 'heading';
-    if (!isEditingHeading) {
-      drawText(ctx, {
-        text: screenshot.heading,
-        fontFamily: screenshot.fontFamily,
-        fontSize: screenshot.headingFontSize,
-        color: screenshot.headingColor || '#ffffff',
-        align: screenshot.headingAlign || 'left',
-        position: screenshot.headingPosition,
-        letterSpacing: screenshot.headingLetterSpacing || 0,
-        lineHeight: screenshot.headingLineHeight || 1.2,
-        isBold: true,
-      }, 150);
-    }
+        // Step 2: Render all elements using unified pipeline
+        // Filter out the element being edited to prevent double rendering
+        const elementsToRender = (screenshot.elements || []).filter(el => {
+          // If editing a text element, don't render it on canvas (textarea will show instead)
+          if (isEditing && isSelected && selectedElement === el.id) {
+            return false;
+          }
+          return true;
+        });
+        
+        await renderAllElements(
+          ctx,
+          elementsToRender,
+          screenshotImage,
+          deviceFrameImage,
+          imageCache
+        );
 
-    // Draw subheading text (skip if editing)
-    const isEditingSubheading = isEditing && selectedElement === 'subheading';
-    if (!isEditingSubheading) {
-      drawText(ctx, {
-        text: screenshot.subheading,
-        fontFamily: screenshot.fontFamily,
-        fontSize: screenshot.subheadingFontSize,
-        color: screenshot.subheadingColor || '#ffffff',
-        align: screenshot.subheadingAlign || 'left',
-        position: screenshot.subheadingPosition,
-        letterSpacing: screenshot.subheadingLetterSpacing || 0,
-        lineHeight: screenshot.subheadingLineHeight || 1.2,
-      }, 400);
-    }
-    
-    // Draw mockup with screenshot
-    if (screenshotImage) {
-      drawMockup(
-        ctx,
-        screenshotImage,
-        deviceFrameImage,
-        {
-          position: screenshot.mockupPosition,
-          scale: screenshot.mockupScale,
-          rotation: screenshot.mockupRotation || 0,
-          baseWidth: 700,
-          baseHeight: 1400,
-          cornerRadius: 40,
-          innerPadding: 20,
-        },
-        CANVAS_WIDTH,
-        CANVAS_HEIGHT
-      );
-    }
-
-    // Draw selection indicators
-    const showSelectionForHeading = selectedElements.has('heading');
-    const showSelectionForSubheading = selectedElements.has('subheading');
-    
-    if (showSelectionForHeading && !isEditing) {
-      const isPrimarySelection = isSelected && selectedElement === 'heading';
-      drawTextSelection(ctx, {
-        text: screenshot.heading,
-        fontFamily: screenshot.fontFamily,
-        fontSize: screenshot.headingFontSize,
-        color: screenshot.headingColor || '#ffffff',
-        align: screenshot.headingAlign || 'left',
-        position: screenshot.headingPosition,
-        letterSpacing: screenshot.headingLetterSpacing || 0,
-        lineHeight: screenshot.headingLineHeight || 1.2,
-        isBold: true,
-      }, 150, isPrimarySelection);
-    }
-    
-    if (showSelectionForSubheading && !isEditing) {
-      const isPrimarySelection = isSelected && selectedElement === 'subheading';
-      drawTextSelection(ctx, {
-        text: screenshot.subheading,
-        fontFamily: screenshot.fontFamily,
-        fontSize: screenshot.subheadingFontSize,
-        color: screenshot.subheadingColor || '#ffffff',
-        align: screenshot.subheadingAlign || 'left',
-        position: screenshot.subheadingPosition,
-        letterSpacing: screenshot.subheadingLetterSpacing || 0,
-        lineHeight: screenshot.subheadingLineHeight || 1.2,
-      }, 400, isPrimarySelection);
-    }
-  }, [screenshot, screenshotImage, deviceFrameImage, global, isSelected, selectedElement, selectedElements, isEditing, index, totalImages]);
+        // Step 3: Draw selection indicator for selected element (if not editing)
+        if (isSelected && selectedElement && !isEditing) {
+          const selectedElementData = screenshot.elements?.find(el => el.id === selectedElement);
+          if (selectedElementData) {
+            renderSelectionIndicator(ctx, selectedElementData);
+          }
+        }
+      } catch (error) {
+        console.error('Error rendering canvas:', error);
+      }
+    })();
+  }, [
+    screenshot.elements,
+    screenshot.image,
+    screenshotImage,
+    deviceFrameImage,
+    backgroundImage,
+    imageCache,
+    global,
+    isSelected,
+    selectedElement,
+    isEditing,
+    index,
+    totalImages
+  ]);
 
   // Handle click detection
   const handleClick = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -171,18 +178,23 @@ export function MarketingImageCanvas({
     // Check if Cmd (macOS) or Ctrl (Windows/Linux) key is pressed for multi-select
     const multiSelectMode = event.metaKey || event.ctrlKey;
 
-    // Detect clicked element
-    const clickedElement = getClickedElement({ screenshot, canvas, clickX, clickY });
+    // Detect clicked element using unified hit detection
+    const clickedElementId = getElementAtPoint(
+      clickX,
+      clickY,
+      screenshot.elements || [],
+      canvas
+    );
     
-    if (clickedElement) {
-      onSelect(index, clickedElement, multiSelectMode);
+    if (clickedElementId) {
+      onSelect(index, clickedElementId, multiSelectMode);
     } else {
       // Click outside - only clear if not in multi-select mode
       if (!multiSelectMode) {
         onSelect(null, null);
       }
     }
-  }, [screenshot, index, onSelect]);
+  }, [screenshot.elements, index, onSelect]);
 
   // Handle mouse down for dragging
   const handleMouseDown = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -197,13 +209,18 @@ export function MarketingImageCanvas({
     const clickY = (event.clientY - rect.top) * scaleY;
 
     // Check if clicking on an element
-    const hitElement = getClickedElement({ screenshot, canvas, clickX, clickY });
+    const hitElementId = getElementAtPoint(
+      clickX,
+      clickY,
+      screenshot.elements || [],
+      canvas
+    );
     
-    if (hitElement && isSelected && selectedElement === hitElement) {
+    if (hitElementId && isSelected && selectedElement === hitElementId) {
       setIsDragging(true);
       setDragStart({ x: clickX, y: clickY });
     }
-  }, [isSelected, selectedElement, screenshot]);
+  }, [isSelected, selectedElement, screenshot.elements]);
 
   // Handle mouse move for dragging
   const handleMouseMove = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -222,24 +239,18 @@ export function MarketingImageCanvas({
     const deltaX = mouseX - dragStart.x;
     const deltaY = mouseY - dragStart.y;
 
-    let currentPos;
-    if (selectedElement === 'heading') {
-      currentPos = screenshot.headingPosition;
-    } else if (selectedElement === 'subheading') {
-      currentPos = screenshot.subheadingPosition;
-    } else if (selectedElement === 'mockup') {
-      currentPos = screenshot.mockupPosition;
-    } else {
-      return;
-    }
+    // Find the element being dragged
+    const element = screenshot.elements?.find(el => el.id === selectedElement);
+    if (!element) return;
 
+    // Update position with delta
     onUpdatePosition(index, selectedElement, {
-      x: currentPos.x + deltaX,
-      y: currentPos.y + deltaY,
+      x: element.position.x + deltaX,
+      y: element.position.y + deltaY,
     });
 
     setDragStart({ x: mouseX, y: mouseY });
-  }, [isDragging, dragStart, selectedElement, screenshot, index, onUpdatePosition]);
+  }, [isDragging, dragStart, selectedElement, screenshot.elements, index, onUpdatePosition]);
 
   // Handle mouse up to end dragging
   const handleMouseUp = useCallback(() => {
@@ -249,14 +260,19 @@ export function MarketingImageCanvas({
 
   // Handle double-click to start editing text
   const handleDoubleClick = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!selectedElement || (selectedElement !== 'heading' && selectedElement !== 'subheading')) return;
+    if (!selectedElement) return;
+    
+    // Only allow editing text elements
+    const element = screenshot.elements?.find(el => el.id === selectedElement);
+    if (!element || element.kind !== 'text') return;
     
     event.stopPropagation();
     
+    // Dispatch custom event for inline text editing
     window.dispatchEvent(new CustomEvent('startTextEditing', { 
-      detail: { screenshotIndex: index, elementType: selectedElement } 
+      detail: { screenshotIndex: index, elementId: selectedElement } 
     }));
-  }, [selectedElement, index]);
+  }, [selectedElement, screenshot.elements, index]);
 
   return (
     <canvas

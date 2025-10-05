@@ -8,6 +8,7 @@ import { TransformControls } from '../TransformControls';
 interface TransformControlsWrapperProps {
   screenshot: any;
   index: number;
+  elementId?: string; // Instance ID for mockup instances (e.g., 'mockup-123')
   mockupX: number;
   mockupY: number;
   mockupWidth: number;
@@ -15,14 +16,15 @@ interface TransformControlsWrapperProps {
   canvasWidth: number;
   canvasHeight: number;
   zoom: number;
-  updateScreenshotPosition: (index: number, element: 'mockup', position: { x: number; y: number }) => void;
-  updateScreenshotScale: (index: number, scale: number) => void;
-  updateScreenshotRotation: (index: number, rotation: number) => void;
+  updateScreenshotPosition: (index: number, element: 'mockup' | string, position: { x: number; y: number }) => void;
+  updateScreenshotScale: (index: number, scale: number, elementId?: string) => void;
+  updateScreenshotRotation: (index: number, rotation: number, elementId?: string) => void;
 }
 
 export function TransformControlsWrapper({
   screenshot,
   index,
+  elementId, // Instance ID for mockup instances
   mockupX,
   mockupY,
   mockupWidth,
@@ -70,16 +72,17 @@ export function TransformControlsWrapper({
         rotation={screenshot.mockupRotation || 0}
         displayScale={displayScale}
         onTransform={(transform) => {
-          // Update position
+          // Update position (use elementId for instances, 'mockup' for legacy)
+          const positionElement = elementId || 'mockup';
           const newX = transform.x - (canvasWidth - transform.width) / 2;
           const newY = transform.y - (canvasHeight - transform.height) / 2;
-          updateScreenshotPosition(index, 'mockup', { x: newX, y: newY });
+          updateScreenshotPosition(index, positionElement, { x: newX, y: newY });
           
-          // Update scale
-          updateScreenshotScale(index, transform.scale);
+          // Update scale (pass elementId for instances)
+          updateScreenshotScale(index, transform.scale, elementId);
           
-          // Update rotation
-          updateScreenshotRotation(index, transform.rotation);
+          // Update rotation (pass elementId for instances)
+          updateScreenshotRotation(index, transform.rotation, elementId);
         }}
         showRotationHandle={true}
         showScaleHandles={true}

@@ -224,8 +224,17 @@ async function generateAppStoreImage(
   device = 'iPhone',
   options = {}
 ) {
-  const { addWatermark = false, theme = null, layout = 'text-top' } = options;
+  const { 
+    addWatermark = false, 
+    theme = null, 
+    layout = 'text-top', 
+    visuals = [],
+    textInstances = [],
+    mockupInstances = []
+  } = options;
+  
   console.log(`ImageGenerationService: generating App Store image with fonts ${headingFontFamily}/${subheadingFontFamily} for ${device}${theme ? ` using theme ${theme.id}` : ''}`);
+  console.log(`ImageGenerationService: Options received - layout: ${layout}, visuals: ${visuals.length}, textInstances: ${textInstances.length}, mockupInstances: ${mockupInstances.length}, addWatermark: ${addWatermark}`);
 
   // Font mapping - from display name to folder name
   const fontMapping = {
@@ -531,6 +540,66 @@ async function generateAppStoreImage(
       console.log('ImageGenerationService: drawing mockup (text-top layout).');
       context.drawImage(mockupCanvas, mockupX, mockupY, mockupDrawWidth, mockupDrawHeight);
     }
+  }
+
+  // Draw custom visuals from configuration
+  if (visuals && visuals.length > 0) {
+    console.log(`ImageGenerationService: rendering ${visuals.length} custom visuals`);
+    console.log(`ImageGenerationService: visuals data:`, JSON.stringify(visuals, null, 2));
+    
+    // Sort by zIndex to render in correct order
+    const sortedVisuals = [...visuals].sort((a, b) => a.zIndex - b.zIndex);
+    
+    for (const visual of sortedVisuals) {
+      try {
+        console.log(`ImageGenerationService: loading visual ${visual.id} from ${visual.imageUrl}`);
+        console.log(`ImageGenerationService: visual details - width: ${visual.width}, height: ${visual.height}, scale: ${visual.scale}, position:`, visual.position);
+        
+        // Download the visual image from Supabase
+        const { getSignedUrlFromSupabase } = require('./storageService');
+        const signedUrl = await getSignedUrlFromSupabase(visual.imageUrl);
+        console.log(`ImageGenerationService: got signed URL: ${signedUrl.substring(0, 100)}...`);
+        
+        const visualImage = await loadImage(signedUrl);
+        console.log(`ImageGenerationService: image loaded successfully, dimensions: ${visualImage.width}x${visualImage.height}`);
+        
+        // Save context state
+        context.save();
+
+        // Translate to visual position (center-based)
+        context.translate(visual.position.x, visual.position.y);
+
+        // Apply rotation (convert degrees to radians)
+        if (visual.rotation) {
+          context.rotate((visual.rotation * Math.PI) / 180);
+        }
+
+        // Calculate scaled dimensions using stored dimensions
+        const scaledWidth = visual.width * visual.scale;
+        const scaledHeight = visual.height * visual.scale;
+        
+        console.log(`ImageGenerationService: drawing visual at scaled dimensions: ${scaledWidth}x${scaledHeight}`);
+
+        // Draw centered on position
+        context.drawImage(
+          visualImage,
+          -scaledWidth / 2,
+          -scaledHeight / 2,
+          scaledWidth,
+          scaledHeight
+        );
+
+        // Restore context state
+        context.restore();
+        
+        console.log(`ImageGenerationService: successfully rendered visual ${visual.id}`);
+      } catch (error) {
+        console.error(`ImageGenerationService: Error rendering visual ${visual.id}:`, error);
+        console.error(`ImageGenerationService: Error stack:`, error.stack);
+      }
+    }
+  } else {
+    console.log('ImageGenerationService: No visuals to render (visuals array is empty or undefined)');
   }
 
   // Watermark overlay for demo/previews

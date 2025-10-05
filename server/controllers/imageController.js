@@ -98,7 +98,8 @@ const imageController = {
         updatedConfig.subheadingFontSize || 69,
         project.device || 'iPhone',
         {
-          layout: updatedConfig.layout || 'text-top'
+          layout: updatedConfig.layout || 'text-top',
+          visuals: updatedConfig.visuals || [] // Pass visuals to renderer
         }
       );
 
@@ -148,15 +149,21 @@ const imageController = {
       const { projectId } = req.params;
       const userId = req.user.id;
 
-      console.log('download-images: Fetching project');
+      console.log('download-images: Fetching project with generated images');
       const project = await prisma.project.findFirst({
-        where: { id: projectId, userId }
+        where: { id: projectId, userId },
+        include: {
+          generatedImages: {
+            orderBy: { displayOrder: 'asc' }
+          }
+        }
       });
 
       if (!project) {
         return res.status(404).json({ error: 'Project not found' });
       }
 
+      console.log(`download-images: Found project with ${project.generatedImages.length} images`);
       console.log('download-images: Creating ZIP file');
       const zipService = require('../services/zipService');
       const zipBuffer = await zipService.createImagesZip(project);
@@ -398,6 +405,45 @@ const imageController = {
     } catch (error) {
       console.error("Error in regenerateImages:", error);
       res.status(500).json({ error: "Error regenerating images" });
+    }
+  },
+
+  // Upload background image
+  async uploadBackgroundImage(req, res) {
+    try {
+      console.log('upload-background-image: Received request');
+      const userId = req.user.id;
+
+      if (!req.file) {
+        return res.status(400).json({ error: 'No image file provided' });
+      }
+
+      const { buffer, originalname, mimetype } = req.file;
+      
+      // Validate file type
+      if (!mimetype.startsWith('image/')) {
+        return res.status(400).json({ error: 'File must be an image' });
+      }
+
+      // Validate file size (10MB max)
+      if (buffer.length > 10 * 1024 * 1024) {
+        return res.status(400).json({ error: 'Image size must be less than 10MB' });
+      }
+
+      console.log('upload-background-image: Uploading to Supabase');
+      const imageUrl = await uploadImageToSupabase(
+        buffer,
+        `background-${originalname}`,
+        mimetype,
+        userId
+      );
+
+      console.log('upload-background-image: Upload successful');
+      res.json({ imageUrl });
+
+    } catch (error) {
+      console.error('Error in upload-background-image:', error);
+      res.status(500).json({ error: 'Error uploading background image' });
     }
   }
 };

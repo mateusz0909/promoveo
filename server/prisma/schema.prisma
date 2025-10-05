@@ -19,6 +19,7 @@ model User {
   createdAt DateTime? @map("created_at")
 
   projects Project[] // A user can have many projects
+  visuals  Visual[]  // A user can have many reusable visuals
 }
 
 model Project {
@@ -55,4 +56,24 @@ model GeneratedImage {
   // Relation to the project it belongs to
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   projectId String
+  
+  @@index([projectId, displayOrder])
+}
+
+model Visual {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  name        String   // User-friendly name
+  category    String   @default("custom") // custom, shapes, people, objects
+  imageUrl    String   // Supabase storage URL
+  fileSize    Int?     // File size in bytes
+  mimeType    String?  // image/png, image/svg+xml, etc.
+  width       Int?     // Image width in pixels
+  height      Int?     // Image height in pixels
+
+  // Relation to the user who owns it (changed from project to user)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  
+  @@index([userId, category])
 }

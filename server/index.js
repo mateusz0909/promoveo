@@ -12,6 +12,7 @@ const contentRoutes = require('./routes/content');
 const imageRoutes = require('./routes/images');
 const projectRoutes = require('./routes/projects');
 const userRoutes = require('./routes/users');
+const visualRoutes = require('./routes/visuals');
 const magicDemoRoutes = require('./routes/magicDemo');
 
 const app = express();
@@ -29,7 +30,12 @@ const port = process.env.PORT || 3001;
 })();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
 // =================================================================
@@ -53,6 +59,7 @@ app.use('/api', contentRoutes);
 app.use('/api/images', imageRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/visuals', visualRoutes);
 app.use('/api/magic-demo', magicDemoRoutes);
 
 // =================================================================

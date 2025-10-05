@@ -1,13 +1,23 @@
 /**
- * Multi-screenshot canvas container component
+ * Multi-screenshot canvas container - Refactored with unified element system
+ * 
+ * This component orchestrates the multi-canvas editing experience:
+ * - Renders all marketing canvases side by side
+ * - Handles zoom with Ctrl/Cmd + Scroll
+ * - Manages transform controls for selected elements
+ * - Supports inline text editing
+ * - Clean integration with unified element model
  */
 
 import { useRef, useEffect, useCallback, useState } from 'react';
-import { useStudioEditor } from '@/context/StudioEditorContext';
-import { CanvasTextEditor } from './CanvasTextEditor';
 import { MarketingImageCanvas } from './canvas/MarketingImageCanvas';
+import { CanvasTextEditor } from './CanvasTextEditor';
 import { TransformControlsWrapper } from './canvas/TransformControlsWrapper';
+import { VisualTransformControlsWrapper } from './canvas/VisualTransformControlsWrapper';
+import { TextTransformControlsWrapper } from './canvas/TextTransformControlsWrapper';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from './canvas/utils';
+import { useStudioEditor } from '@/context/StudioEditorContext';
+import { isTextElement, isMockupElement, isVisualElement } from '@/context/studio-editor/elementTypes';
 
 export function MultiScreenshotCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -19,12 +29,13 @@ export function MultiScreenshotCanvas() {
     global,
     selectElement,
     clearSelection,
-    updateScreenshotPosition,
-    updateScreenshotScale,
-    updateScreenshotRotation,
+    updateElementPosition,
+    updateElementScale,
+    updateElementRotation,
+    updateTextWidth,
     startEditing,
     stopEditing,
-    setZoom
+    setZoom,
   } = useStudioEditor();
 
   // Load device frame
@@ -79,21 +90,26 @@ export function MultiScreenshotCanvas() {
     }
   }, [view.zoom, setZoom]);
 
-  const handleSelect = useCallback((index: number | null, elementType: any, multiSelectMode?: boolean) => {
-    if (index === null) {
+  // Handle selection
+  const handleSelect = useCallback((
+    index: number | null, 
+    elementId: string | null
+  ) => {
+    if (index === null || elementId === null) {
       clearSelection();
     } else {
-      selectElement(index, elementType, multiSelectMode);
+      selectElement(index, elementId);
     }
   }, [selectElement, clearSelection]);
 
+  // Handle position updates from drag
   const handleUpdatePosition = useCallback((
     index: number, 
-    element: string, 
+    elementId: string, 
     position: { x: number; y: number }
   ) => {
-    updateScreenshotPosition(index, element as 'heading' | 'subheading' | 'mockup', position);
-  }, [updateScreenshotPosition]);
+    updateElementPosition(index, elementId, position);
+  }, [updateElementPosition]);
 
   // Handle click on background to clear selection
   const handleBackgroundClick = useCallback((event: React.MouseEvent) => {
@@ -117,7 +133,14 @@ export function MultiScreenshotCanvas() {
         }}
       >
         {screenshots.map((screenshot, index) => {
-          const isThisScreenshotEditing = selection.isEditing && selection.screenshotIndex === index;
+          const isSelected = selection.screenshotIndex === index;
+          const selectedElementId = isSelected ? selection.elementId : null;
+          const isThisScreenshotEditing = selection.isEditing && isSelected;
+          
+          // Get the selected element data
+          const selectedElement = selectedElementId 
+            ? screenshot.elements?.find(el => el.id === selectedElementId)
+            : null;
           
           const handleWrapperClick = (e: React.MouseEvent) => {
             // If in editing mode and clicking canvas (not textarea), close editor
@@ -132,20 +155,6 @@ export function MultiScreenshotCanvas() {
             }
           };
           
-          const mockupWidth = 700 * screenshot.mockupScale;
-          const mockupHeight = 1400 * screenshot.mockupScale;
-          const mockupX = (CANVAS_WIDTH - mockupWidth) / 2 + screenshot.mockupPosition.x;
-          const mockupY = (CANVAS_HEIGHT - mockupHeight) / 2 + screenshot.mockupPosition.y;
-          
-          const isSelectedMockup = selection.screenshotIndex === index && selection.elementType === 'mockup';
-          
-          // Get all selected elements for this screenshot
-          const selectedElements = new Set<'heading' | 'subheading'>(
-            selection.multiSelect
-              .filter(item => item.screenshotIndex === index)
-              .map(item => item.elementType)
-          );
-          
           return (
             <div 
               key={screenshot.id} 
@@ -156,44 +165,111 @@ export function MultiScreenshotCanvas() {
                 screenshot={screenshot}
                 index={index}
                 totalImages={screenshots.length}
-                isSelected={selection.screenshotIndex === index}
-                selectedElement={selection.screenshotIndex === index ? selection.elementType : null}
-                isEditing={selection.isEditing && selection.screenshotIndex === index}
-                selectedElements={selectedElements}
+                isSelected={isSelected}
+                selectedElement={selectedElementId}
+                isEditing={isThisScreenshotEditing}
                 onSelect={handleSelect}
                 onUpdatePosition={handleUpdatePosition}
                 deviceFrameImage={deviceFrameImage}
                 global={global}
               />
               
-              {/* Transform controls for mockup */}
-              {isSelectedMockup && !selection.isEditing && (
+              {/* Transform controls for mockup elements */}
+              {selectedElement && isMockupElement(selectedElement) && !selection.isEditing && (
                 <TransformControlsWrapper
                   screenshot={screenshot}
                   index={index}
-                  mockupX={mockupX}
-                  mockupY={mockupY}
-                  mockupWidth={mockupWidth}
-                  mockupHeight={mockupHeight}
+                  elementId={selectedElement.id}
+                  mockupX={(CANVAS_WIDTH - 700 * selectedElement.scale) / 2 + selectedElement.position.x}
+                  mockupY={(CANVAS_HEIGHT - 1400 * selectedElement.scale) / 2 + selectedElement.position.y}
+                  mockupWidth={700 * selectedElement.scale}
+                  mockupHeight={1400 * selectedElement.scale}
                   canvasWidth={CANVAS_WIDTH}
                   canvasHeight={CANVAS_HEIGHT}
                   zoom={view.zoom}
-                  updateScreenshotPosition={updateScreenshotPosition}
-                  updateScreenshotScale={updateScreenshotScale}
-                  updateScreenshotRotation={updateScreenshotRotation}
+                  updateScreenshotPosition={(idx, elemId, pos) => updateElementPosition(idx, elemId as string, pos)}
+                  updateScreenshotScale={(idx, scale, elemId) => updateElementScale(idx, elemId || selectedElement.id, scale)}
+                  updateScreenshotRotation={(idx, rotation, elemId) => updateElementRotation(idx, elemId || selectedElement.id, rotation)}
                 />
               )}
               
-              {/* In-canvas text editor */}
-              {selection.isEditing && 
-               selection.screenshotIndex === index && 
-               selection.elementType &&
-               (selection.elementType === 'heading' || selection.elementType === 'subheading') && (
-                <CanvasTextEditor
-                  screenshotIndex={index}
-                  elementType={selection.elementType}
-                  onClose={stopEditing}
+              {/* Transform controls for text elements (when not editing) */}
+              {selectedElement && isTextElement(selectedElement) && !selection.isEditing && (
+                <TextTransformControlsWrapper
+                  screenshot={screenshot}
+                  index={index}
+                  element={selectedElement}
+                  canvasWidth={CANVAS_WIDTH}
+                  canvasHeight={CANVAS_HEIGHT}
+                  zoom={view.zoom}
+                  updateTextWidth={updateTextWidth}
+                  updateTextPosition={(idx, elemId, pos) => updateElementPosition(idx, elemId, pos)}
+                  updateTextRotation={(idx, elemId, rotation) => updateElementRotation(idx, elemId, rotation)}
                 />
+              )}
+              
+              {/* Transform controls for visual elements */}
+              {selectedElement && isVisualElement(selectedElement) && !selection.isEditing && (
+                (() => {
+                  const baseWidth = selectedElement.width || 300;
+                  const baseHeight = selectedElement.height || 300;
+                  const visualWidth = baseWidth * selectedElement.scale;
+                  const visualHeight = baseHeight * selectedElement.scale;
+                  
+                  return (
+                    <VisualTransformControlsWrapper
+                      screenshot={screenshot}
+                      index={index}
+                      visualId={selectedElement.id.replace('visual-', '')}
+                      centerX={selectedElement.position.x}
+                      centerY={selectedElement.position.y}
+                      width={visualWidth}
+                      height={visualHeight}
+                      rotation={selectedElement.rotation || 0}
+                      scale={selectedElement.scale}
+                      baseWidth={baseWidth}
+                      baseHeight={baseHeight}
+                      canvasWidth={CANVAS_WIDTH}
+                      canvasHeight={CANVAS_HEIGHT}
+                      zoom={view.zoom}
+                      updateVisualPosition={(idx, visualId, pos) => 
+                        updateElementPosition(idx, `visual-${visualId}`, pos)
+                      }
+                      updateVisualScale={(idx, visualId, scale) => 
+                        updateElementScale(idx, `visual-${visualId}`, scale)
+                      }
+                      updateVisualRotation={(idx, visualId, rotation) => 
+                        updateElementRotation(idx, `visual-${visualId}`, rotation)
+                      }
+                    />
+                  );
+                })()
+              )}
+              
+              {/* In-canvas text editor for text elements */}
+              {selectedElement && 
+               isTextElement(selectedElement) && 
+               selection.isEditing && 
+               isSelected && (
+                (() => {
+                  // Extract 'heading' or 'subheading' from element ID
+                  // IDs are like: "text-1234567890-abc" (general text) or legacy "heading-1234" / "subheading-1234"
+                  const elementType = selectedElement.id.startsWith('heading-') 
+                    ? 'heading' 
+                    : selectedElement.id.startsWith('subheading-')
+                    ? 'subheading'
+                    : selectedElement.isBold 
+                    ? 'heading'  // Default for bold text
+                    : 'subheading'; // Default for regular text
+                    
+                  return (
+                    <CanvasTextEditor
+                      screenshotIndex={index}
+                      elementType={elementType as 'heading' | 'subheading'}
+                      onClose={stopEditing}
+                    />
+                  );
+                })()
               )}
             </div>
           );

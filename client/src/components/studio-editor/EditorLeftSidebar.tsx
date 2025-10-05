@@ -2,28 +2,34 @@ import { useState, useEffect } from 'react';
 import {
   DevicePhoneMobileIcon,
   DocumentTextIcon,
-  PhotoIcon,
   PaintBrushIcon,
   ArrowsPointingOutIcon,
   LanguageIcon,
   XMarkIcon,
+  RectangleStackIcon,
 } from '@heroicons/react/24/outline';
+import { ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { BackgroundPanel } from './BackgroundPanel';
+import ScreenshotsPanel from './ScreenshotsPanel';
+import { VisualsPanel } from './VisualsPanel';
+import { TextPanel } from '../editor/panels/TextPanel';
+import { MockupsPanel } from '../editor/panels/MockupsPanel';
 
-type SidebarPanel = 'devices' | 'text' | 'image' | 'background' | 'resize' | 'translate' | null;
+type SidebarPanel = 'screenshots' | 'mockups' | 'text' | 'visuals' | 'background' | 'resize' | 'translate' | null;
 
 const SIDEBAR_ITEMS = [
-  { id: 'devices' as const, icon: DevicePhoneMobileIcon, label: 'Devices' },
-  { id: 'text' as const, icon: DocumentTextIcon, label: 'Text' },
-  { id: 'image' as const, icon: PhotoIcon, label: 'Image' },
+  { id: 'screenshots' as const, icon: RectangleStackIcon, label: 'App Store Images' },
   { id: 'background' as const, icon: PaintBrushIcon, label: 'Background' },
+  { id: 'mockups' as const, icon: DevicePhoneMobileIcon, label: 'Mockups' },
+  { id: 'text' as const, icon: DocumentTextIcon, label: 'Text' },
+  { id: 'visuals' as const, icon: ImageIcon, label: 'Visuals' },
   { id: 'resize' as const, icon: ArrowsPointingOutIcon, label: 'Resize' },
   { id: 'translate' as const, icon: LanguageIcon, label: 'Translate' },
 ];
 
 export function EditorLeftSidebar() {
-  const [activePanel, setActivePanel] = useState<SidebarPanel>('background');
+  const [activePanel, setActivePanel] = useState<SidebarPanel>('screenshots');
 
   const handlePanelToggle = (panelId: SidebarPanel) => {
     setActivePanel(activePanel === panelId ? null : panelId);
@@ -96,23 +102,18 @@ export function EditorLeftSidebar() {
             </div>
 
             {/* Panel Content */}
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex-1 overflow-y-auto">
               <div className="text-sm text-muted-foreground">
+                {activePanel === 'screenshots' && <ScreenshotsPanel />}
                 {activePanel === 'background' && <BackgroundPanel />}
-                {activePanel === 'devices' && (
-                  <p>Device controls coming soon...</p>
-                )}
-                {activePanel === 'text' && (
-                  <p>Text controls coming soon...</p>
-                )}
-                {activePanel === 'image' && (
-                  <p>Image controls coming soon...</p>
-                )}
+                {activePanel === 'mockups' && <MockupsPanel />}
+                {activePanel === 'text' && <TextPanel />}
+                {activePanel === 'visuals' && <VisualsPanel />}
                 {activePanel === 'resize' && (
-                  <p>Resize controls coming soon...</p>
+                  <p className="p-4">Resize controls coming soon...</p>
                 )}
                 {activePanel === 'translate' && (
-                  <p>Translate controls coming soon...</p>
+                  <p className="p-4">Translate controls coming soon...</p>
                 )}
               </div>
             </div>

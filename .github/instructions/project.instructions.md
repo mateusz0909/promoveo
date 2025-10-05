@@ -1,9 +1,27 @@
 ---
 applyTo: '**'
 ---
-# AppStoreFire AI Age- **Projects** (`/api/projects`)
+# Lemmi Studio AI Age- **Projects** (`/api/projects`)
+  - `GET /` returns the authenticated user's projects with paging/sorting.
+  - `GET /:id` fetches - **Projects** (`/api/projects`)
   - `GET /` returns the authenticated user's projects with paging/sorting.
   - `GET /:id` fetches a single project plus generated assets.
+  - `PUT /:id` updates metadata (`inputAppName`, `inputAppDescription`, etc.).
+  - `PUT /:id/content` persists edited ASO JSON structures.
+  - `PUT /:projectId/images/:imageId` **[NEW]** saves configuration JSON for studio editor (auto-save endpoint, no image regeneration).
+  - `DELETE /:id` removes the project (Supabase cleanup still TODO).
+  - `POST /:projectId/images/:imageId` uploads edited blobs (legacy canvas flow).
+  - `POST /:projectId/images/:imageId/visuals` adds a visual instance to a screenshot.
+  - `PUT /:projectId/images/:imageId/visuals/:visualInstanceId` updates visual transform (position, scale, rotation).
+  - `DELETE /:projectId/images/:imageId/visuals/:visualInstanceId` removes a visual instance from a screenshot.
+  - `POST /save-legacy` stores legacy project payloads.
+  - `GET /:id/landing-page` returns stored config/meta; `POST /:id/landing-page` (auth + optional logo upload) rebuilds the landing page ZIP and caches download URLs + timestamps.
+- **Visuals** (`/api/visuals`) **[NEW]**
+  - `POST /` (auth) uploads a custom visual/image asset to user's library (10MB limit, extracts dimensions with sharp).
+  - `GET /` (auth) returns all visuals for the authenticated user.
+  - `DELETE /:visualId` (auth) deletes a visual from user's library.
+- **Users** (`/api/users`)
+  - Profile CRUD, stats aggregation, account deletion (all auth gated).oject plus generated assets.
   - `PUT /:id` updates metadata (`inputAppName`, `inputAppDescription`, etc.).
   - `PUT /:id/content` persists edited ASO JSON structures.
   - `PUT /:projectId/images/:imageId` **[NEW]** saves configuration JSON for studio editor (auto-save endpoint, no image regeneration).
@@ -13,12 +31,12 @@ applyTo: '**'
   - `GET /:id/landing-page` returns stored config/meta; `POST /:id/landing-page` (auth + optional logo upload) rebuilds the landing page ZIP and caches download URLs + timestamps.ctions
 
 ## Role
-You operate as a senior full-stack engineer with deep expertise in React, TypeScript, Node.js/Express, Prisma, Supabase, Canvas-based graphics, and Gemini AI integrations. Prioritize maintainability, performance, UX quality, and clear communication. Treat the existing architecture as the source of truth and extend it without breaking contracts.
+You operate as a senior full-stack engineer with deep expertise in React, TypeScript, Node.js/Express, Prisma, Supabase, Canvas-based graphics, and Gemini AI integrations. Prioritize maintainability, performance, UX quality, and clear communication. Treat the existing architecture as the source of truth and extend it without breaking contracts. Don't create summary or summary documents unless explicitly requested!
 
 ## Project Scope & Current State
 
-### What AppStoreFire Does
-AppStoreFire is an AI-powered marketing asset generator for mobile app developers. It helps indie developers create professional App Store assets (marketing screenshots, ASO copy, landing pages) without design skills.
+### What Lemmi Studio Does
+Lemmi Studio is an AI-powered marketing asset generator for mobile app developers. It helps indie developers create professional App Store assets (marketing screenshots, ASO copy, landing pages) without design skills.
 
 **Core Value Proposition:**
 1. Upload app screenshots + basic info
@@ -34,6 +52,8 @@ AppStoreFire is an AI-powered marketing asset generator for mobile app developer
 - AI-generated ASO content (Gemini integration)
 - Full-screen multi-screenshot canvas editor (auto-save)
 - Real-time configuration persistence (no image regeneration on edit)
+- Custom visuals system (user-level reusable image library)
+- Visual transform controls (drag, resize, rotate with center-based positioning)
 - Landing page generator with customization
 - Project history and management
 - Responsive UI with dark mode
@@ -49,6 +69,8 @@ AppStoreFire is an AI-powered marketing asset generator for mobile app developer
 - Batch editing across multiple screenshots
 - Template system for common design patterns
 - Export to multiple App Store formats
+- Visual Z-index controls (layer ordering)
+- Visual library categories and search
 
 ### Development Setup
 
@@ -72,40 +94,6 @@ TMP_MAX_FILE_AGE_HOURS=24
 TMP_CLEANUP_INTERVAL_MINUTES=60
 ```
 
-**Installation:**
-```bash
-# Install all workspace dependencies
-npm install
-
-# Generate Prisma client
-cd server
-npx prisma generate
-npx prisma migrate dev
-
-# Start development (all workspaces)
-cd ..
-npm run dev
-```
-
-**Development Servers:**
-- Client: http://localhost:5173 (Vite)
-- Server: http://localhost:3001 (Express)
-- Landing Page: http://localhost:3000 (Next.js)
-
-**Key Commands:**
-```bash
-npm run dev              # Start all workspaces
-npm run dev:client       # Client only
-npm run dev:server       # Server only
-npm run dev:lp           # Landing page only
-
-npm run build --workspace=client    # Build React app
-npm run build:lp                    # Build landing page
-
-npm run lint --workspace=client     # Lint React app
-npm run lint:lp                     # Lint landing page
-```
-
 ### Tech Stack Summary
 
 **Frontend (client/):**
@@ -124,6 +112,7 @@ npm run lint:lp                     # Lint landing page
 - Google Gemini AI 1.19
 - node-canvas 3.2 (server-side rendering)
 - node-vibrant 4.0 (color extraction)
+- sharp 0.33+ (image dimension extraction)
 - Multer (file uploads)
 
 **Landing Page (Landing Page/):**
@@ -135,7 +124,7 @@ npm run lint:lp                     # Lint landing page
 ## Architecture at a Glance
 - **Monorepo** (`lemmi-studio`) managed through npm workspaces: `client/` (React), `server/` (Express), and `Landing Page/` (Next.js marketing site).
 - **Client**: React 19, TypeScript 5.8, Vite 7, Tailwind CSS 4, shadcn/ui, React Router 7, Sonner toasts, Hero Icons, Embla carousel, Jotai, Pikaso canvas helpers, local font stack.
-- **Server**: Express 5, Prisma 6 with Supabase Postgres, Supabase Auth/Storage, `@google/genai` 1.19, `canvas` 3.2, `node-vibrant` 4.0, Archiver, Multer, Axios.
+- **Server**: Express 5, Prisma 6 with Supabase Postgres, Supabase Auth/Storage, `@google/genai` 1.19, `canvas` 3.2, `node-vibrant` 4.0, `sharp` 0.33+, Archiver, Multer, Axios.
 - **Landing Page**: Next.js 15, TypeScript, Tailwind CSS 4, shadcn/ui components for marketing and public-facing content.
 - **Shared tooling**: ESLint 9, Nodemon, dotenv, fs-extra, UUID, browser image compression, custom tmp directory management.
 
@@ -144,9 +133,9 @@ npm run lint:lp                     # Lint landing page
 2. **Step 1 · Upload** – Users supply app metadata, language, target device, and up to 10 screenshots. Client-side compression and aspect-ratio validation enforce portrait sizing per device.
 3. **Step 2 · Describe** – Optional AI-assisted descriptions (`/api/images/generate-description`) enrich each screenshot. Manual edits persist before generation.
 4. **Step 3 · Generate & Edit** – `/api/generate-and-save` (auth + FormData) creates an ASO package and framed marketing images while uploading originals and renditions to Supabase.
-5. **Studio Tabs** – `ProjectContent` surfaces dedicated tabs for Images, App Store Content, Project Overview, and Landing Page tooling. Per-field regeneration, autosave, and project deletion live here.
-6. **Refine Assets** – `ImageEditor` lets users reposition frames, tweak fonts/themes, and persist immutable versions through `/api/projects/:projectId/images/:imageId` with Supabase versioning.
-7. **Publish & Reuse** – Users can download singles, authenticated ZIPs (`/api/images/download/:projectId`), legacy ZIP bundles, or generate landing-page packages via `/api/projects/:id/landing-page` (includes logo handling and stored metadata).
+5. **Studio Tabs** – `ProjectContent` surfaces dedicated tabs for Visuals, Images, App Store Content, Project Overview, and Landing Page tooling. Per-field regeneration, autosave, and project deletion live here.
+6. **Refine Assets** – Multi-screenshot canvas editor with full-screen layout lets users position frames, edit text, add custom visuals, and persist configurations through auto-save. Transform controls support drag, resize, and rotate for both device mockups and custom visuals.
+7. **Publish & Reuse** – Users can download singles, authenticated ZIPs (`/api/images/download/:projectId`), legacy ZIP bundles, or generate landing-page packages via `/api/projects/:id/landing-page` (includes logo handling and stored metadata). Custom visuals are reusable across all projects.
 
 ## Backend Surface
 ### Routes & Contracts
@@ -193,6 +182,7 @@ All authenticated routes rely on `middleware/auth.js`, which validates Supabase 
 - `fileUploadService` – Multer configuration supporting memory uploads and logo handling for landing pages.
 
 ### Data Model (Prisma excerpt)
+
 ```prisma
 model User {
   id        String    @id @default(uuid())
@@ -201,6 +191,7 @@ model User {
   createdAt DateTime? @map("created_at")
   updatedAt DateTime? @map("updated_at")
   projects  Project[]
+  visuals   Visual[]  // User-level reusable visual library
 }
 
 model Project {
@@ -226,6 +217,30 @@ model GeneratedImage {
   sourceScreenshotUrl String
   generatedImageUrl   String
   accentColor         String?
+  configuration       Json?    // Stores heading, subheading, fonts, mockup transforms, and visual instances
+  createdAt           DateTime @default(now())
+  projectId           String
+  project             Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Visual {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  name        String   // User-friendly name
+  category    String   @default("custom") // custom, shapes, people, objects
+  imageUrl    String   // Supabase storage URL
+  fileSize    Int?     // File size in bytes
+  mimeType    String?  // image/png, image/svg+xml, etc.
+  width       Int?     // Image width in pixels (extracted with sharp)
+  height      Int?     // Image height in pixels (extracted with sharp)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, category])
+}
+
+model GeneratedImage {
+  accentColor         String?
   configuration       Json?
   description         String?
   createdAt           DateTime @default(now())
@@ -248,7 +263,8 @@ model GeneratedImage {
    - `Step2` shows a grid of thumbnails with editable descriptions and per-image "✨ Generate with AI" buttons hitting `/api/images/generate-description`.
    - Transitions to a `GeneratingContent` loader while the main generation request is in flight.
 3. **Step 3 – Studio Tabs (`ProjectContent`)**
-   - **ImagesTab**: Full-screen canvas editor (screenshots.pro-style) with multi-screenshot editing, unified gradient backgrounds, and real-time preview. Auto-saves configuration every 2 seconds.
+   - **VisualsTab**: User-level visual library with upload functionality (10MB limit, PNG/JPG/WebP/SVG). Visuals are reusable across all projects. Each visual shows thumbnail, name, file size, and delete option.
+   - **ImagesTab**: Full-screen canvas editor (screenshots.pro-style) with multi-screenshot editing, unified gradient backgrounds, and real-time preview. Auto-saves configuration every 2 seconds. Supports adding custom visuals with transform controls.
    - **AppStoreContentTab**: field-by-field editors with character counters, copy-to-clipboard, and AI regeneration per field (`/api/regenerate-content-part`).
    - **ProjectOverviewTab**: metadata summaries, inline updates persisted via `PUT /api/projects/:id`, danger-zone deletion, and activity timestamps.
    - **LandingPageTab**: landing page builder with App Store ID field, generated image picker, optional logo upload (2 MB max), mockup previews, existing build download, and success view once a ZIP exists.
@@ -261,10 +277,13 @@ model GeneratedImage {
 - `StudioEditorContext` – Central state management for all screenshots, selections, view settings, and auto-save logic
 - `MultiScreenshotCanvas` – Renders individual 1200×2600px canvases per screenshot with unified gradient backgrounds
 - `EditorTopToolbar` – Context-aware toolbar showing TextToolbar or MockupToolbar based on selection, plus save status indicator
-- `EditorLeftSidebar` – Icon-only sidebar with collapsible panels (Background, Screenshots, Layers)
+- `EditorLeftSidebar` – Icon-only sidebar with collapsible panels (Background, Screenshots, Visuals, Layers)
 - `EditorBottomToolbar` – Zoom controls and view settings
+- `VisualsPanel` – User visual library with upload, search, and thumbnail grid
 - `TextToolbar` – Font family selector, font size (10-128px), text input for heading/subheading
 - `MockupToolbar` – Device frame selector, mockup scale slider
+- `VisualTransformControlsWrapper` – Center-based transform controls for custom visuals
+- `TransformControlsWrapper` – Top-left based transform controls for device mockups
 
 **Key Features:**
 - **Auto-save with 2-second debounce** – Configuration persists to DB automatically after changes
@@ -277,53 +296,6 @@ model GeneratedImage {
 - **Unified backgrounds** – Gradient or solid colors flow seamlessly across all screenshots
 - **Visual save feedback** – "Saving..." (spinner) or "Saved" (green checkmark) in top toolbar
 
-**Auto-Save Implementation:**
-```tsx
-// Debounced auto-save in StudioEditorContext
-const isFirstRenderRef = useRef(true); // Skip first render
-const [isSaving, setIsSaving] = useState(false);
-
-useEffect(() => {
-  if (isFirstRenderRef.current) {
-    isFirstRenderRef.current = false;
-    return;
-  }
-  
-  setIsSaving(true); // Show "Saving..." immediately
-  
-  const timeout = setTimeout(() => {
-    saveConfiguration(); // API call after 2 seconds
-  }, 2000);
-  
-  return () => clearTimeout(timeout);
-}, [screenshots, global]);
-```
-
-**Configuration Storage (GeneratedImage.configuration):**
-```json
-{
-  "heading": "Text content",
-  "subheading": "Subtitle text",
-  "headingFont": "Inter",
-  "headingFontSize": 64,
-  "subheadingFontSize": 32,
-  "mockupX": 0, "mockupY": 0,
-  "mockupScale": 1.0,
-  "headingX": 100, "headingY": 100,
-  "subheadingX": 100, "subheadingY": 200,
-  "theme": "light",
-  "deviceFrame": "iPhone 15 Pro",
-  "backgroundType": "gradient",
-  "backgroundGradient": {
-    "startColor": "#667eea",
-    "endColor": "#764ba2",
-    "angle": 135
-  }
-}
-```
-
-**API Endpoint:**
-- `PUT /api/projects/:projectId/images/:imageId` – Saves configuration JSON, no image regeneration
 
 **Canvas Specifications:**
 - Canvas size: 1200×2600px (full resolution)
@@ -403,6 +375,65 @@ Transformed the image editor from a dialog-based single-image editor to a full-s
 - 🚀 Smaller payloads (JSON config vs. full images)
 - 🚀 Faster editing workflow (auto-save + real-time preview)
 
+### Custom Visuals System (October 2025)
+Implemented user-level reusable visual library allowing users to upload custom images and apply them across all projects.
+
+**Key Features:**
+1. **User-Level Storage** – Visuals belong to users, not projects (reusable across all projects)
+2. **Automatic Dimension Extraction** – Uses sharp to extract actual image dimensions on upload
+3. **Transform Controls** – Full drag, resize, rotate with center-based positioning
+4. **Real-Time Rendering** – Visuals rendered on canvas with proper dimensions and transforms
+5. **Auto-Save Integration** – Visual instances persist in GeneratedImage.configuration JSON
+
+**Architecture:**
+- **Backend**: New `/api/visuals` routes for user-level CRUD, sharp integration for dimension extraction
+- **Database**: Visual model with width/height fields, indexed on [userId, category]
+- **Frontend**: VisualsPanel component in editor, VisualTransformControlsWrapper for center-based transforms
+- **Storage**: Uploaded to Supabase Storage (10MB limit, PNG/JPG/WebP/SVG support)
+
+**Transform System:**
+- **Coordinate System**: Visuals use CENTER positioning (position = center point), mockups use TOP-LEFT
+- **VisualTransformControlsWrapper**: Converts between center and top-left coordinates for transform controls
+- **Scale Calculation**: Based on actual width/height, not hardcoded 300×300
+- **Hit Detection**: Updated for center-based positioning with rotation support
+
+**Data Flow:**
+1. User uploads visual → Sharp extracts dimensions → Stored in Visual model with width/height
+2. User adds visual to canvas → Creates VisualInstance with reference to Visual + transform data
+3. Canvas renders visual → Uses stored dimensions × scale for accurate rendering
+4. Transform controls → Use actual dimensions for proper bounding box (no more square bounds)
+
+**Visual Instance Structure (in GeneratedImage.configuration.visuals):**
+```json
+{
+  "id": "visual-1234567890",
+  "visualId": "clxyz123",
+  "imageUrl": "https://...",
+  "name": "App Store Badge",
+  "width": 564,
+  "height": 168,
+  "position": { "x": 600, "y": 1300 },
+  "scale": 0.5,
+  "rotation": 0,
+  "zIndex": 0
+}
+```
+
+**API Endpoints:**
+- `POST /api/visuals` – Upload visual with automatic dimension extraction
+- `GET /api/visuals` – List user's visual library
+- `DELETE /api/visuals/:visualId` – Remove visual from library
+- `POST /api/projects/:projectId/images/:imageId/visuals` – Add visual instance to screenshot
+- `PUT /api/projects/:projectId/images/:imageId/visuals/:visualInstanceId` – Update transform
+- `DELETE /api/projects/:projectId/images/:imageId/visuals/:visualInstanceId` – Remove instance
+
+**Key Implementation Details:**
+- Visual selection shows only outer transform controls bounds (no duplicate canvas selection)
+- Dimensions fallback to 300×300 if extraction fails (backwards compatibility)
+- Z-index determines render order (visuals sorted before rendering)
+- Center-based positioning ensures predictable rotation behavior
+- 🚀 Faster editing workflow (auto-save + real-time preview)
+
 ### Known Issues & Workarounds
 
 **Issue: Auto-save shows "Saving..." continuously**
@@ -424,5 +455,6 @@ Transformed the image editor from a dialog-based single-image editor to a full-s
 - Test auto-save: Make edits, wait 2 seconds, verify DB updates with configuration JSON
 - Test canvas rendering: Ensure text wraps correctly, mockups scale properly, gradients flow across screenshots
 - Test image generation: Download images, verify they match canvas preview
-- dont create summary or summary documents unless explicitly requested!
+- Test visuals feature: Upload custom images, verify dimensions extracted correctly, add to canvas, test transform controls (drag, resize, rotate), verify persistence across page reloads
+
 

@@ -18,6 +18,155 @@ export interface HitTestConfig {
 export function getClickedElement(config: HitTestConfig): ElementType | null {
   const { screenshot, canvas, clickX, clickY } = config;
   
+  // Check if we're using instance-based architecture
+  const textInstances = screenshot.textInstances || [];
+  const mockupInstances = screenshot.mockupInstances || [];
+  const useInstanceMode = textInstances.length > 0 || mockupInstances.length > 0;
+
+  if (useInstanceMode) {
+    // ========== INSTANCE-BASED HIT DETECTION ==========
+    
+    // Check mockup instances
+    for (const mockupInstance of mockupInstances) {
+      const mockupWidth = 700 * mockupInstance.scale;
+      const mockupHeight = 1400 * mockupInstance.scale;
+      const mockupX = (CANVAS_WIDTH - mockupWidth) / 2 + mockupInstance.position.x;
+      const mockupY = (CANVAS_HEIGHT - mockupHeight) / 2 + mockupInstance.position.y;
+      const mockupRotation = mockupInstance.rotation || 0;
+      
+      if (mockupRotation !== 0) {
+        // Transform click point to mockup's local coordinate space
+        const centerX = mockupX + mockupWidth / 2;
+        const centerY = mockupY + mockupHeight / 2;
+        
+        const translatedX = clickX - centerX;
+        const translatedY = clickY - centerY;
+        
+        const rad = (-mockupRotation * Math.PI) / 180;
+        const rotatedX = translatedX * Math.cos(rad) - translatedY * Math.sin(rad);
+        const rotatedY = translatedX * Math.sin(rad) + translatedY * Math.cos(rad);
+        
+        const localX = rotatedX + centerX;
+        const localY = rotatedY + centerY;
+        
+        if (
+          localX >= mockupX && 
+          localX <= mockupX + mockupWidth &&
+          localY >= mockupY && 
+          localY <= mockupY + mockupHeight
+        ) {
+          return mockupInstance.id as ElementType;
+        }
+      } else {
+        if (
+          clickX >= mockupX && 
+          clickX <= mockupX + mockupWidth &&
+          clickY >= mockupY && 
+          clickY <= mockupY + mockupHeight
+        ) {
+          return mockupInstance.id as ElementType;
+        }
+      }
+    }
+
+    // Check visuals
+    const visuals = screenshot.image.configuration?.visuals || [];
+    const sortedVisuals = [...visuals].sort((a, b) => b.zIndex - a.zIndex);
+    
+    for (const visual of sortedVisuals) {
+      const baseWidth = visual.width || 300;
+      const baseHeight = visual.height || 300;
+      const visualWidth = baseWidth * visual.scale;
+      const visualHeight = baseHeight * visual.scale;
+      
+      const visualX = visual.position.x - visualWidth / 2;
+      const visualY = visual.position.y - visualHeight / 2;
+      const rotation = visual.rotation || 0;
+      
+      if (rotation !== 0) {
+        const centerX = visual.position.x;
+        const centerY = visual.position.y;
+        
+        const translatedX = clickX - centerX;
+        const translatedY = clickY - centerY;
+        
+        const rad = (-rotation * Math.PI) / 180;
+        const rotatedX = translatedX * Math.cos(rad) - translatedY * Math.sin(rad);
+        const rotatedY = translatedX * Math.sin(rad) + translatedY * Math.cos(rad);
+        
+        if (
+          Math.abs(rotatedX) <= visualWidth / 2 && 
+          Math.abs(rotatedY) <= visualHeight / 2
+        ) {
+          return `visual-${visual.id}` as ElementType;
+        }
+      } else {
+        if (
+          clickX >= visualX && 
+          clickX <= visualX + visualWidth &&
+          clickY >= visualY && 
+          clickY <= visualY + visualHeight
+        ) {
+          return `visual-${visual.id}` as ElementType;
+        }
+      }
+    }
+
+    // Check text instances
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    
+    const maxTextWidth = CANVAS_WIDTH * 0.9;
+    
+    for (const textInstance of textInstances) {
+      if (!textInstance.text || textInstance.text === '') continue;
+      
+      const fontSize = textInstance.fontSize * FONT_SCALE_MULTIPLIER;
+      const fontWeight = textInstance.type === 'heading' ? 'bold' : 'normal';
+      ctx.font = `${fontWeight} ${fontSize}px ${textInstance.fontFamily}`;
+      
+      const lines = wrapText(ctx, textInstance.text, maxTextWidth);
+      const lineHeight = fontSize * (textInstance.lineHeight || 1.2);
+      const totalHeight = lines.length * lineHeight;
+      
+      let maxWidth = 0;
+      lines.forEach(line => {
+        const metrics = ctx.measureText(line);
+        maxWidth = Math.max(maxWidth, metrics.width);
+      });
+      
+      // Calculate bounds based on alignment
+      let minX: number, maxX: number;
+      const textX = textInstance.position.x;
+      const textY = textInstance.position.y;
+      const align = textInstance.align || 'left';
+      
+      if (align === 'left') {
+        minX = textX - 20;
+        maxX = textX + maxWidth + 20;
+      } else if (align === 'right') {
+        minX = textX - maxWidth - 20;
+        maxX = textX + 20;
+      } else {
+        minX = textX - maxWidth / 2 - 20;
+        maxX = textX + maxWidth / 2 + 20;
+      }
+      
+      if (
+        clickX >= minX && 
+        clickX <= maxX && 
+        clickY >= textY - 20 && 
+        clickY <= textY + totalHeight + 20
+      ) {
+        return textInstance.id as ElementType;
+      }
+    }
+
+    // If no instance was clicked, fall through to check legacy elements below
+  }
+
+  // ========== LEGACY SINGLE-ELEMENT HIT DETECTION ==========
+  // Always check legacy elements as fallback (even if instances exist)
   const mockupWidth = 700 * screenshot.mockupScale;
   const mockupHeight = 1400 * screenshot.mockupScale;
   const mockupX = (CANVAS_WIDTH - mockupWidth) / 2 + screenshot.mockupPosition.x;
@@ -61,6 +210,56 @@ export function getClickedElement(config: HitTestConfig): ElementType | null {
       clickY <= mockupY + mockupHeight
     ) {
       return 'mockup';
+    }
+  }
+
+  // Check visuals (in reverse Z-index order, so top elements are checked first)
+  const visuals = screenshot.image.configuration?.visuals || [];
+  const sortedVisuals = [...visuals].sort((a, b) => b.zIndex - a.zIndex);
+  
+  for (const visual of sortedVisuals) {
+    // Use actual visual dimensions
+    const baseWidth = visual.width || 300; // Fallback to 300 if not set
+    const baseHeight = visual.height || 300; // Fallback to 300 if not set
+    const visualWidth = baseWidth * visual.scale;
+    const visualHeight = baseHeight * visual.scale;
+    
+    // Visual position is the CENTER, so calculate top-left corner
+    const visualX = visual.position.x - visualWidth / 2;
+    const visualY = visual.position.y - visualHeight / 2;
+    const rotation = visual.rotation || 0;
+    
+    if (rotation !== 0) {
+      // Transform click point to visual's local coordinate space
+      const centerX = visual.position.x;
+      const centerY = visual.position.y;
+      
+      // Translate to origin
+      const translatedX = clickX - centerX;
+      const translatedY = clickY - centerY;
+      
+      // Rotate (inverse rotation)
+      const rad = (-rotation * Math.PI) / 180;
+      const rotatedX = translatedX * Math.cos(rad) - translatedY * Math.sin(rad);
+      const rotatedY = translatedX * Math.sin(rad) + translatedY * Math.cos(rad);
+      
+      // Check bounds in local space (centered on origin)
+      if (
+        Math.abs(rotatedX) <= visualWidth / 2 && 
+        Math.abs(rotatedY) <= visualHeight / 2
+      ) {
+        return `visual-${visual.id}` as ElementType;
+      }
+    } else {
+      // No rotation - simple bounds check
+      if (
+        clickX >= visualX && 
+        clickX <= visualX + visualWidth &&
+        clickY >= visualY && 
+        clickY <= visualY + visualHeight
+      ) {
+        return `visual-${visual.id}` as ElementType;
+      }
     }
   }
 

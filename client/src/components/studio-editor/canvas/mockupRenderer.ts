@@ -45,16 +45,22 @@ export function drawMockup(
     ctx.translate(-centerX, -centerY);
   }
   
+  // Create rounded rectangle clipping path for screenshot
+  // Use a larger radius to ensure screenshot corners don't show
+  // Modern iPhones have ~55-60px corner radius, so we use a generous value
+  const screenshotRadius = Math.max(radius, 60 * config.scale);
+  
   ctx.beginPath();
   ctx.roundRect(
     mockupX + innerPadding,
     mockupY + innerPadding,
     mockupWidth - innerPadding * 2,
     mockupHeight - innerPadding * 2,
-    radius
+    screenshotRadius
   );
   ctx.clip();
   
+  // Draw screenshot image
   ctx.drawImage(
     screenshotImage,
     mockupX + innerPadding,

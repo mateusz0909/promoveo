@@ -38,6 +38,7 @@ interface TransformControlsProps {
   // Options
   showRotationHandle?: boolean;
   showScaleHandles?: boolean;
+  hideTopBottomHandles?: boolean; // New: hide top and bottom handles for text
   minScale?: number;
   maxScale?: number;
 }
@@ -61,6 +62,7 @@ export function TransformControls({
   onTransformEnd,
   showRotationHandle = true,
   showScaleHandles = true,
+  hideTopBottomHandles = false,
   minScale = 0.1,
   maxScale = 5.0,
 }: TransformControlsProps) {
@@ -334,29 +336,29 @@ export function TransformControls({
       )}
 
       {/* Corner handles - positioned on center of dotted outline */}
-      {renderHandle('top-left', {
+      {!hideTopBottomHandles && renderHandle('top-left', {
         left: `-${HANDLE_SIZE / 2 + OUTLINE_OFFSET}px`,
         top: `-${HANDLE_SIZE / 2 + OUTLINE_OFFSET}px`,
         pointerEvents: 'auto',
       })}
-      {renderHandle('top-right', {
+      {!hideTopBottomHandles && renderHandle('top-right', {
         right: `-${HANDLE_SIZE / 2 + OUTLINE_OFFSET}px`,
         top: `-${HANDLE_SIZE / 2 + OUTLINE_OFFSET}px`,
         pointerEvents: 'auto',
       })}
-      {renderHandle('bottom-right', {
+      {!hideTopBottomHandles && renderHandle('bottom-right', {
         right: `-${HANDLE_SIZE / 2 + OUTLINE_OFFSET}px`,
         bottom: `-${HANDLE_SIZE / 2 + OUTLINE_OFFSET}px`,
         pointerEvents: 'auto',
       })}
-      {renderHandle('bottom-left', {
+      {!hideTopBottomHandles && renderHandle('bottom-left', {
         left: `-${HANDLE_SIZE / 2 + OUTLINE_OFFSET}px`,
         bottom: `-${HANDLE_SIZE / 2 + OUTLINE_OFFSET}px`,
         pointerEvents: 'auto',
       })}
 
       {/* Side handles - positioned on center of dotted outline */}
-      {renderHandle('top', {
+      {!hideTopBottomHandles && renderHandle('top', {
         left: `${displayWidth / 2 - HANDLE_SIZE / 2}px`,
         top: `-${HANDLE_SIZE / 2 + OUTLINE_OFFSET}px`,
         pointerEvents: 'auto',
@@ -366,7 +368,7 @@ export function TransformControls({
         top: `${displayHeight / 2 - HANDLE_SIZE / 2}px`,
         pointerEvents: 'auto',
       })}
-      {renderHandle('bottom', {
+      {!hideTopBottomHandles && renderHandle('bottom', {
         left: `${displayWidth / 2 - HANDLE_SIZE / 2}px`,
         bottom: `-${HANDLE_SIZE / 2 + OUTLINE_OFFSET}px`,
         pointerEvents: 'auto',
