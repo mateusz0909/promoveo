@@ -13,7 +13,7 @@ import logoBlack from '@/assets/logo_icon_black.png';
 import logoWhite from '@/assets/logo_icon_white.png';
 
 export function AuthPage({ type }: { type: "login" | "signup" }) {
-  const [loadingProvider, setLoadingProvider] = useState<"google" | "github" | "apple" | null>(null);
+  const [loadingProvider, setLoadingProvider] = useState<"google" | "github" | null>(null);
 
   const title = type === "login" ? "Welcome Back" : "Get Started";
   const description =
@@ -51,23 +51,6 @@ export function AuthPage({ type }: { type: "login" | "signup" }) {
       // Don't navigate here - the OAuth redirect will handle it
     } catch (error) {
       console.error("GitHub sign in error:", error);
-      setLoadingProvider(null);
-    }
-  };
-
-  const handleAppleSignIn = async () => {
-    setLoadingProvider("apple");
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({ 
-        provider: "apple",
-        options: {
-          redirectTo: window.location.origin
-        }
-      });
-      if (error) throw error;
-      // Don't navigate here - the OAuth redirect will handle it
-    } catch (error) {
-      console.error("Apple sign in error:", error);
       setLoadingProvider(null);
     }
   };

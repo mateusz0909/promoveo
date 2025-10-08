@@ -2,7 +2,9 @@
  * Text rendering utilities
  */
 
-import { wrapText, CANVAS_WIDTH, FONT_SCALE_MULTIPLIER } from './utils';
+import { wrapText, drawLineWithLetterSpacing } from './utils';
+import type { CanvasMetrics } from './utils';
+import { quoteFontFamily } from '@/lib/fonts';
 
 export interface TextConfig {
   text: string;
@@ -14,18 +16,23 @@ export interface TextConfig {
   letterSpacing: number;
   lineHeight: number;
   isBold?: boolean;
+  fontWeight?: number;
 }
 
 /**
  * Calculate X position based on alignment
  */
-function getTextX(align: 'left' | 'center' | 'right', positionOffset: number): number {
+function getTextX(
+  align: 'left' | 'center' | 'right',
+  positionOffset: number,
+  metrics: CanvasMetrics
+): number {
   if (align === 'left') {
     return 60 + positionOffset; // Left margin + offset
   } else if (align === 'right') {
-    return CANVAS_WIDTH - 60 + positionOffset; // Right margin + offset
+    return metrics.width - 60 + positionOffset; // Right margin + offset
   } else {
-    return CANVAS_WIDTH / 2 + positionOffset; // Center + offset
+    return metrics.width / 2 + positionOffset; // Center + offset
   }
 }
 
@@ -35,32 +42,36 @@ function getTextX(align: 'left' | 'center' | 'right', positionOffset: number): n
 export function drawText(
   ctx: CanvasRenderingContext2D,
   config: TextConfig,
-  baseY: number
+  baseY: number,
+  metrics: CanvasMetrics
 ): void {
   ctx.fillStyle = config.color;
-  const fontSize = config.fontSize * FONT_SCALE_MULTIPLIER;
-  const fontWeight = config.isBold ? 'bold ' : '';
-  ctx.font = `${fontWeight}${fontSize}px ${config.fontFamily}`;
+  const fontSize = config.fontSize * metrics.fontScaleMultiplier;
+  const weightValue = config.fontWeight ?? (config.isBold ? 700 : 400);
+  const fontWeightSegment = typeof weightValue === 'number' ? `${weightValue} ` : '';
+  const fontFamily = quoteFontFamily(config.fontFamily);
+  ctx.font = `${fontWeightSegment}${fontSize}px ${fontFamily}`;
   ctx.textAlign = config.align;
   ctx.textBaseline = 'top';
   
-  // Apply letter spacing (convert percentage to em units)
-  ctx.letterSpacing = `${config.letterSpacing * 0.01}em`;
-  
   // Wrap text with max width of 90% canvas width
-  const maxTextWidth = CANVAS_WIDTH * 0.9;
-  const lines = wrapText(ctx, config.text, maxTextWidth);
+  const maxTextWidth = metrics.defaultTextWidth;
+  const lines = wrapText(ctx, config.text, maxTextWidth, config.letterSpacing);
   const lineHeight = fontSize * config.lineHeight;
   
-  const textX = getTextX(config.align, config.position.x);
+  const textX = getTextX(config.align, config.position.x, metrics);
   const textY = baseY + config.position.y;
   
   lines.forEach((line, lineIndex) => {
-    ctx.fillText(line, textX, textY + (lineIndex * lineHeight));
+    drawLineWithLetterSpacing(
+      ctx,
+      line,
+      textX,
+      textY + (lineIndex * lineHeight),
+      config.align,
+      config.letterSpacing
+    );
   });
-  
-  // Reset letter spacing
-  ctx.letterSpacing = '0px';
 }
 
 /**
@@ -70,15 +81,18 @@ export function drawTextSelection(
   ctx: CanvasRenderingContext2D,
   config: TextConfig,
   baseY: number,
-  isPrimary: boolean
+  isPrimary: boolean,
+  metrics: CanvasMetrics
 ): void {
-  const fontSize = config.fontSize * FONT_SCALE_MULTIPLIER;
-  const fontWeight = config.isBold ? 'bold ' : '';
-  ctx.font = `${fontWeight}${fontSize}px ${config.fontFamily}`;
+  const fontSize = config.fontSize * metrics.fontScaleMultiplier;
+  const weightValue = config.fontWeight ?? (config.isBold ? 700 : 400);
+  const fontWeightSegment = typeof weightValue === 'number' ? `${weightValue} ` : '';
+  const fontFamily = quoteFontFamily(config.fontFamily);
+  ctx.font = `${fontWeightSegment}${fontSize}px ${fontFamily}`;
   ctx.textAlign = config.align;
   
-  const maxTextWidth = CANVAS_WIDTH * 0.9;
-  const lines = wrapText(ctx, config.text, maxTextWidth);
+  const maxTextWidth = metrics.defaultTextWidth;
+  const lines = wrapText(ctx, config.text, maxTextWidth, config.letterSpacing);
   const lineHeight = fontSize * config.lineHeight;
   const totalHeight = lines.length * lineHeight;
   
@@ -86,7 +100,9 @@ export function drawTextSelection(
   let maxLineWidth = 0;
   lines.forEach(line => {
     const metrics = ctx.measureText(line);
-    maxLineWidth = Math.max(maxLineWidth, metrics.width);
+    const spacingTotal = config.letterSpacing * Math.max(line.length - 1, 0);
+    const totalWidth = Math.max(metrics.width + spacingTotal, 0);
+    maxLineWidth = Math.max(maxLineWidth, totalWidth);
   });
   
   // Set selection style
@@ -95,7 +111,7 @@ export function drawTextSelection(
   ctx.setLineDash([20, 10]);
   
   // Calculate bounding box based on alignment
-  const textX = getTextX(config.align, config.position.x);
+  const textX = getTextX(config.align, config.position.x, metrics);
   const textY = baseY + config.position.y;
   
   let boxX: number;

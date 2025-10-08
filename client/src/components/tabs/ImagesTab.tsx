@@ -4,8 +4,9 @@ import type { GeneratedImage } from '@/types/project';
 interface ImagesTabProps {
   imageList: GeneratedImage[];
   projectId?: string;
-  onDownloadSingle: (imageUrl: string) => Promise<void>;
-  onEdit: (image: GeneratedImage, index: number) => void;
+  appName: string;
+  appDescription: string;
+  device?: string;
 }
 
 /**
@@ -15,13 +16,19 @@ interface ImagesTabProps {
 export const ImagesTab = ({ 
   imageList, 
   projectId,
+  appName,
+  appDescription,
+  device,
 }: ImagesTabProps) => {
   // Directly render editor layout (no mode toggle, no gallery grid)
   return (
-    <div className="h-full w-full">
+    <div className="h-full w-full min-w-0">
       <StudioEditorLayout 
         imageList={imageList}
         projectId={projectId || ''}
+        appName={appName}
+        appDescription={appDescription}
+        device={device}
       />
     </div>
   );

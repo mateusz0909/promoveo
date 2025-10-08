@@ -14,15 +14,20 @@ import {
   ArrowDownTrayIcon,
   GlobeAltIcon
 } from '@heroicons/react/24/outline';
+import type { GeneratedImage as GeneratedImageType } from '@/types/project';
 
-interface GeneratedImage {
+type LandingPageImage = GeneratedImageType & {
   id: string;
   sourceScreenshotUrl: string;
-  generatedImageUrl: string;
-  accentColor?: string;
-  configuration?: Record<string, unknown> | null;
-  createdAt: string;
-}
+};
+
+const isLandingPageImage = (value: unknown): value is LandingPageImage => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  return typeof record.id === 'string' && typeof record.sourceScreenshotUrl === 'string';
+};
 
 interface LandingPageFormData {
   appStoreId: string;
@@ -152,7 +157,7 @@ export function LandingPageTab({ className }: LandingPageTabProps) {
     logoFile: null,
     selectedImageId: '',
   });
-  const [projectImages, setProjectImages] = useState<GeneratedImage[]>([]);
+  const [projectImages, setProjectImages] = useState<LandingPageImage[]>([]);
   const [isLoadingImages, setIsLoadingImages] = useState(true);
   const [isGeneratingLandingPage, setIsGeneratingLandingPage] = useState(false);
   const [isLoadingConfig, setIsLoadingConfig] = useState(false);
@@ -190,7 +195,10 @@ export function LandingPageTab({ className }: LandingPageTabProps) {
 
         if (response.ok) {
           const project = await response.json();
-          setProjectImages(project.generatedImages || []);
+          const imageList = Array.isArray(project.generatedImages)
+            ? project.generatedImages.filter(isLandingPageImage)
+            : [];
+          setProjectImages(imageList);
         } else {
           console.error('Failed to fetch project images');
           toast.error('Failed to load project images');
@@ -429,6 +437,7 @@ export function LandingPageTab({ className }: LandingPageTabProps) {
         try {
           await triggerZipDownload(data.downloadUrl);
         } catch (error) {
+          console.error('Auto-download failed, opening fallback tab:', error);
           window.open(data.downloadUrl, '_blank', 'noopener,noreferrer');
           toast.info('Landing page zip opened in a new tab.');
         }
@@ -481,6 +490,7 @@ export function LandingPageTab({ className }: LandingPageTabProps) {
     try {
       await triggerZipDownload(landingPageMeta.downloadUrl);
     } catch (error) {
+      console.error('Download of existing landing page failed:', error);
       window.open(landingPageMeta.downloadUrl, '_blank', 'noopener,noreferrer');
       toast.info('Opened latest zip in a new tab.');
     } finally {
@@ -768,7 +778,7 @@ export function LandingPageTab({ className }: LandingPageTabProps) {
                       />
                     ) : mockupErrors[image.id] ? (
                       <img
-                        src={image.sourceScreenshotUrl || image.generatedImageUrl}
+                        src={image.sourceScreenshotUrl}
                         alt="Screenshot"
                         className="h-full w-full object-cover"
                       />

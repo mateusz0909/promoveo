@@ -181,11 +181,9 @@ export const useFileUpload = (options: FileUploadOptions = {}): [FileUploadState
         files: [],
         errors: [],
       };
-
-      onFilesChange?.(newState.files);
       return newState;
     });
-  }, [onFilesChange]);
+  }, []);
 
   const addFiles = useCallback(
     (newFiles: FileList | File[]) => {
@@ -254,7 +252,6 @@ export const useFileUpload = (options: FileUploadOptions = {}): [FileUploadState
 
         setState((prev) => {
           const newFiles = !multiple ? validFiles : [...prev.files, ...validFiles];
-          onFilesChange?.(newFiles);
           return {
             ...prev,
             files: newFiles,
@@ -283,8 +280,8 @@ export const useFileUpload = (options: FileUploadOptions = {}): [FileUploadState
       createPreview,
       generateUniqueId,
       clearFiles,
-      onFilesChange,
       onFilesAdded,
+      onError,
     ],
   );
 
@@ -302,7 +299,6 @@ export const useFileUpload = (options: FileUploadOptions = {}): [FileUploadState
         }
 
         const newFiles = prev.files.filter((file) => file.id !== id);
-        onFilesChange?.(newFiles);
 
         return {
           ...prev,
@@ -311,7 +307,7 @@ export const useFileUpload = (options: FileUploadOptions = {}): [FileUploadState
         };
       });
     },
-    [onFilesChange],
+    [],
   );
 
   const replaceFile = useCallback(
@@ -342,15 +338,13 @@ export const useFileUpload = (options: FileUploadOptions = {}): [FileUploadState
             : file,
         );
 
-        onFilesChange?.(updatedFiles);
-
         return {
           ...prev,
           files: updatedFiles,
         };
       });
     },
-    [createPreview, onFilesChange],
+    [createPreview],
   );
 
   const clearErrors = useCallback(() => {
@@ -435,12 +429,20 @@ export const useFileUpload = (options: FileUploadOptions = {}): [FileUploadState
     [accept, multiple, handleFileChange],
   );
 
+  useEffect(() => {
+    if (!onFilesChange) {
+      return;
+    }
+
+    onFilesChange(state.files);
+  }, [state.files, onFilesChange]);
+
   return [
     state,
     {
       addFiles,
       removeFile,
-  replaceFile,
+      replaceFile,
       clearFiles,
       clearErrors,
       handleDragEnter,

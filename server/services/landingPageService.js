@@ -32,7 +32,7 @@ async function generateLandingPage(project, generatedImages, customData = {}) {
   );
 
   const selectedImage = customData.selectedImage || generatedImages?.[0];
-  const candidateScreenshotUrl = selectedImage?.sourceScreenshotUrl || selectedImage?.generatedImageUrl || null;
+  const candidateScreenshotUrl = selectedImage?.sourceScreenshotUrl || null;
 
   // Generate App Store URL if appStoreId is provided
   let appStoreUrl = '';

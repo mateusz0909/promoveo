@@ -8,7 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useBreadcrumb } from "@/context/BreadcrumbContext";
 import { useProject } from "@/context/ProjectContext";
 import { Spinner } from "@/components/ui/shadcn-io/spinner";
-import type { GeneratedImage, GeneratedImageConfiguration, GeneratedText } from '@/types/project';
+import type { GeneratedImage, GeneratedText } from '@/types/project';
 
 // This component will wrap the multi-step form for creating/editing a project
 export function ProjectWorkspace() {
@@ -115,17 +115,6 @@ export function ProjectWorkspace() {
   const handleNext = () => setStep(step + 1);
   const handleBack = () => setStep(step - 1);
   
-  const handleImageSave = async (newImageUrl: string, imageIndex: number, configuration: GeneratedImageConfiguration) => {
-    const updatedImages = [...generatedImages];
-    const imageToUpdate = updatedImages[imageIndex];
-    if (!imageToUpdate) {
-      return;
-    }
-    imageToUpdate.generatedImageUrl = `${newImageUrl}`;
-    imageToUpdate.configuration = configuration;
-    setGeneratedImages(updatedImages);
-  };
-
   const handleGenerateAndSave = async () => {
     if (files.length === 0 || !appName || !appDescription) {
       toast.error("Please fill out all fields and select at least one file.");
@@ -248,7 +237,6 @@ export function ProjectWorkspace() {
           setAppName={setAppName}
           setAppDescription={setAppDescription}
           setGeneratedText={setGeneratedText}
-          onImageSave={handleImageSave}
           projectId={id || createdProjectId}
           device={device}
           language={language}

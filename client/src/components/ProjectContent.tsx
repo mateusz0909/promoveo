@@ -1,16 +1,52 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useEffect, useMemo, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ImagesTab } from './tabs/ImagesTab';
 import { AppStoreContentTab } from './tabs/AppStoreContentTab';
 import { ProjectOverviewTab } from './tabs/ProjectOverviewTab';
 import { LandingPageTab } from './tabs/LandingPageTab';
-import { ImageEditor } from './ImageEditor';
 import { toast } from "sonner";
 import { useAuth } from '../context/AuthContext';
 import { useProject } from '../context/ProjectContext';
 import { renderScreenshotToCanvas } from './studio-editor/canvasRenderer';
 import JSZip from 'jszip';
 import type { GeneratedImage, GeneratedImageConfiguration, GeneratedText } from '@/types/project';
+import { FONT_FAMILIES, preloadFontFamilies } from '@/lib/fonts';
+
+type CanvasRenderConfiguration = Parameters<typeof renderScreenshotToCanvas>[1]['configuration'];
+
+const omitNullish = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => omitNullish(item))
+      .filter((item) => item !== undefined);
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.entries(value as Record<string, unknown>).reduce<Record<string, unknown>>(
+      (acc, [key, val]) => {
+        const cleaned = omitNullish(val);
+        if (cleaned !== undefined) {
+          acc[key] = cleaned;
+        }
+        return acc;
+      },
+      {}
+    );
+  }
+
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+
+  return value;
+};
+
+const normalizeConfiguration = (
+  config: GeneratedImageConfiguration | null | undefined
+): CanvasRenderConfiguration => {
+  const cleaned = omitNullish(config ?? {}) ?? {};
+  return cleaned as CanvasRenderConfiguration;
+};
 
 interface ProjectContentProps {
   appName: string;
@@ -20,7 +56,6 @@ interface ProjectContentProps {
   setAppName: (name: string) => void;
   setAppDescription: (description: string) => void;
   setGeneratedText: (text: GeneratedText | null) => void;
-  onImageSave: (newImageUrl: string, imageIndex: number, configuration: GeneratedImageConfiguration) => Promise<void>;
   projectId?: string;
   device?: string;
   language?: string;
@@ -33,11 +68,6 @@ export const ProjectContent: React.FC<ProjectContentProps> = (props) => {
   const navigate = useNavigate();
   const { session } = useAuth();
   const { setOnDownloadAll } = useProject();
-  const [fonts, setFonts] = useState<string[]>([]);
-  const [isEditorOpen, setIsEditorOpen] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
-  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
-  const [imageList, setImageList] = useState<GeneratedImage[]>([]);
 
   const {
     appName,
@@ -47,7 +77,6 @@ export const ProjectContent: React.FC<ProjectContentProps> = (props) => {
     setAppName,
     setAppDescription,
     setGeneratedText,
-    onImageSave,
     projectId,
     device,
     language,
@@ -56,14 +85,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = (props) => {
   } = props;
 
   useEffect(() => {
-    setImageList(generatedImages);
-  }, [generatedImages]);
-
-  useEffect(() => {
-    fetch("http://localhost:3001/api/fonts")
-      .then(res => res.json())
-      .then(data => setFonts(data))
-      .catch(err => console.error("Error fetching fonts:", err));
+    void preloadFontFamilies(FONT_FAMILIES);
   }, []);
 
   // Determine which content to show based on URL
@@ -86,68 +108,6 @@ export const ProjectContent: React.FC<ProjectContentProps> = (props) => {
     return 'images';
   };
 
-  // Handler functions from Step3
-  const handleImageSave = async (newImageUrl: string, imageIndex: number, configuration: GeneratedImageConfiguration) => {
-    const newImageList = [...imageList];
-    const imageToUpdate = newImageList[imageIndex];
-    if (!imageToUpdate) {
-      return;
-    }
-
-    const oldImageUrl = imageToUpdate.generatedImageUrl;
-    
-    imageToUpdate.generatedImageUrl = newImageUrl;
-    imageToUpdate.configuration = configuration;
-    setImageList(newImageList);
-
-  await onImageSave(newImageUrl, imageIndex, configuration);
-
-    if (oldImageUrl && 'caches' in window) {
-      try {
-        const cacheNames = await caches.keys();
-        await Promise.all(
-          cacheNames.map(async (cacheName) => {
-            const cache = await caches.open(cacheName);
-            await cache.delete(oldImageUrl);
-          })
-        );
-        console.log('Successfully invalidated old cached image:', oldImageUrl);
-      } catch (error) {
-        console.warn('Failed to invalidate old cached image:', error);
-      }
-    }
-  };
-
-  const handleDownloadSingleImage = async (imageUrl: string) => {
-    try {
-      toast.info("Starting download...");
-      const response = await fetch(imageUrl);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      const filename = imageUrl.split('/').pop()?.split('?')[0] || `image-${Date.now()}.png`;
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-      toast.success("Image downloaded successfully!");
-    } catch (error) {
-      console.error("Error downloading image:", error);
-      toast.error("Failed to download image.");
-    }
-  };
-
-  const handleEdit = (image: GeneratedImage, index: number) => {
-    setSelectedImage(image);
-    setSelectedImageIndex(index);
-    setIsEditorOpen(true);
-  };
-
   const handleCopy = useCallback((text: string) => {
     navigator.clipboard.writeText(text);
     toast("Copied to clipboard!");
@@ -166,18 +126,18 @@ export const ProjectContent: React.FC<ProjectContentProps> = (props) => {
 
       // Generate each image from configuration
       for (let i = 0; i < generatedImages.length; i++) {
-        const image = generatedImages[i];
-        const config = image.configuration || {};
+  const image = generatedImages[i];
+  const configuration = normalizeConfiguration(image.configuration);
 
         // Create a temporary canvas for this image
-        const canvas = document.createElement('canvas');
-        canvas.width = 1200;
-        canvas.height = 2600;
+  const canvas = document.createElement('canvas');
+  canvas.width = 1242;
+  canvas.height = 2688;
 
         // Render the screenshot using the same logic as the editor
         await renderScreenshotToCanvas(canvas, {
           sourceScreenshotUrl: image.sourceScreenshotUrl || '',
-          configuration: config as any, // Type assertion needed due to null/undefined differences
+          configuration,
           device: device || 'iPhone',
           index: i, // Pass the screenshot index
           totalImages: generatedImages.length, // Pass total count for gradient interpolation
@@ -375,29 +335,17 @@ export const ProjectContent: React.FC<ProjectContentProps> = (props) => {
       
       {currentView === 'images' && (
         <ImagesTab 
-          imageList={imageList}
+          imageList={generatedImages}
           projectId={projectId}
-          onDownloadSingle={handleDownloadSingleImage}
-          onEdit={handleEdit}
+          appName={appName}
+          appDescription={appDescription}
+          device={device}
         />
       )}
 
       {currentView === 'landing-page' && (
         <LandingPageTab />
       )}
-
-      <ImageEditor
-        isOpen={isEditorOpen}
-        onClose={() => setIsEditorOpen(false)}
-        imageData={selectedImage}
-        imageIndex={selectedImageIndex}
-        fonts={fonts}
-        onSave={handleImageSave}
-        projectId={projectId}
-        device={device}
-        appName={appName}
-        appDescription={appDescription}
-      />
     </div>
   );
 };

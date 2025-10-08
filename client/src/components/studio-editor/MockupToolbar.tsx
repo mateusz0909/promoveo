@@ -1,37 +1,29 @@
+import { useRef, useState, type ChangeEvent } from 'react';
 import { useStudioEditor } from '@/context/StudioEditorContext';
 import { Button } from '@/components/ui/button';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   DevicePhoneMobileIcon,
   ArrowPathRoundedSquareIcon,
+  ArrowUpTrayIcon,
 } from '@heroicons/react/24/outline';
 import { isMockupElement, type MockupElement } from '@/context/studio-editor/elementTypes';
-
-const DEVICE_FRAMES = [
-  { id: 'iphone-15-pro', name: 'iPhone 15 Pro' },
-  { id: 'iphone-15', name: 'iPhone 15' },
-  { id: 'iphone-14-pro', name: 'iPhone 14 Pro' },
-  { id: 'ipad-pro-13', name: 'iPad Pro 13"' },
-  { id: 'ipad-pro-11', name: 'iPad Pro 11"' },
-];
+import { resolveDevicePreset } from '@/constants/devicePresets';
 
 export function MockupToolbar() {
   const { 
     selection, 
     global, 
-    updateDeviceFrame,
     updateElement,
     getSelectedElement,
+    getSelectedScreenshot,
+    replaceScreenshotImage,
   } = useStudioEditor();
 
-  // Get the selected element
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isReplacing, setIsReplacing] = useState(false);
+
   const selectedElement = getSelectedElement();
+  const selectedScreenshot = getSelectedScreenshot();
   
   // Only show toolbar if a mockup element is selected
   if (!selectedElement || !isMockupElement(selectedElement)) {
@@ -40,9 +32,7 @@ export function MockupToolbar() {
 
   const mockupElement = selectedElement as MockupElement;
 
-  const handleDeviceChange = (deviceId: string) => {
-    updateDeviceFrame(deviceId);
-  };
+  const deviceLabel = resolveDevicePreset(global.deviceFrame).label;
 
   const handleResetTransform = () => {
     if (selection.screenshotIndex !== null && selection.elementId) {
@@ -61,24 +51,45 @@ export function MockupToolbar() {
     }
   };
 
+  const handleReplaceClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || selection.screenshotIndex === null) {
+      event.target.value = '';
+      return;
+    }
+
+    setIsReplacing(true);
+
+    try {
+      await replaceScreenshotImage(selection.screenshotIndex, file);
+    } catch (error) {
+      console.error('MockupToolbar: Failed to replace screenshot', error);
+    } finally {
+      setIsReplacing(false);
+      event.target.value = '';
+    }
+  };
+
   return (
     <div className="flex items-center gap-4 px-4 py-2 border-l">
-      {/* Device Frame Selector */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+        {/* Device Frame Information */}
       <div className="flex items-center gap-2">
         <DevicePhoneMobileIcon className="h-5 w-5 text-neutral-600" />
-        <label className="text-sm font-medium text-neutral-600 whitespace-nowrap">Device:</label>
-        <Select value={global.deviceFrame} onValueChange={handleDeviceChange}>
-          <SelectTrigger className="w-48 h-9">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {DEVICE_FRAMES.map((device) => (
-              <SelectItem key={device.id} value={device.id}>
-                {device.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <div className="flex items-center gap-1 text-sm text-neutral-600 whitespace-nowrap">
+            <span className="font-medium">Device:</span>
+            <span>{deviceLabel}</span>
+          </div>
       </div>
 
       {/* Scale Slider */}
@@ -114,6 +125,17 @@ export function MockupToolbar() {
 
       {/* Action Buttons */}
       <div className="flex items-center gap-2 ml-auto">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleReplaceClick}
+          className="h-9"
+          disabled={isReplacing || !selectedScreenshot}
+          title="Upload a replacement screenshot image"
+        >
+          <ArrowUpTrayIcon className="h-4 w-4 mr-2" />
+          {isReplacing ? 'Replacing…' : 'Replace Screenshot'}
+        </Button>
         {/* Reset Transform */}
         <Button
           variant="outline"

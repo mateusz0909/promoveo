@@ -1,4 +1,4 @@
-import type { GeneratedImage } from '@/types/project';
+import type { GeneratedImage, GeneratedImageConfiguration } from '@/types/project';
 import type { CanvasElement } from './elementTypes';
 
 // ============================================================================
@@ -20,6 +20,7 @@ export interface ScreenshotState {
 export interface SelectionState {
   screenshotIndex: number | null;
   elementId: string | null;     // ID of selected element
+  selectedElementIds: string[]; // Currently single-selection, kept array for future compatibility
   isEditing: boolean;            // Whether text is being edited inline
 }
 
@@ -74,6 +75,13 @@ export interface Visual {
 // Context Type
 // ============================================================================
 
+export type AiGenerationStyle = 'concise' | 'detailed';
+
+export interface ScreenshotAiStatus {
+  status: 'idle' | 'loading';
+  style?: AiGenerationStyle;
+}
+
 export interface StudioEditorContextType {
   // State
   screenshots: ScreenshotState[];
@@ -83,6 +91,9 @@ export interface StudioEditorContextType {
   isSaving: boolean;
   visuals: Visual[];
   projectId: string;
+  appName: string;
+  appDescription: string;
+  aiGenerationStatus: Record<string, ScreenshotAiStatus>;
   
   // Selection Actions
   selectElement: (screenshotIndex: number, elementId: string | null) => void;
@@ -95,6 +106,7 @@ export interface StudioEditorContextType {
   updateElement: (screenshotIndex: number, elementId: string, updates: Partial<CanvasElement>) => Promise<void>;
   deleteElement: (screenshotIndex: number, elementId: string) => Promise<void>;
   duplicateElement: (screenshotIndex: number, elementId: string) => Promise<void>;
+  generateScreenshotText: (screenshotIndex: number, style: AiGenerationStyle) => Promise<void>;
   
   // Transform Operations
   updateElementPosition: (screenshotIndex: number, elementId: string, position: { x: number; y: number }) => void;
@@ -107,6 +119,7 @@ export interface StudioEditorContextType {
   addScreenshot: () => Promise<void>;
   removeScreenshot: (index: number) => Promise<void>;
   reorderScreenshots: (fromIndex: number, toIndex: number) => Promise<void>;
+  replaceScreenshotImage: (screenshotIndex: number, file: File) => Promise<string | null>;
   
   // View Actions
   setZoom: (zoom: number) => void;
@@ -126,6 +139,7 @@ export interface StudioEditorContextType {
   
   // Utilities
   getSelectedElement: () => CanvasElement | null;
+  getSelectedElements: () => CanvasElement[];
   getSelectedScreenshot: () => ScreenshotState | null;
   getElementsByKind: (screenshotIndex: number, kind: 'text' | 'mockup' | 'visual') => CanvasElement[];
 }
@@ -139,6 +153,8 @@ export interface LegacyScreenshotData {
   image: GeneratedImage;
   heading: string;
   subheading: string;
+  headingWidth?: number;
+  subheadingWidth?: number;
   mockupPosition: { x: number; y: number };
   mockupScale: number;
   mockupRotation: number;
@@ -156,4 +172,5 @@ export interface LegacyScreenshotData {
   subheadingLineHeight: number;
   fontFamily: string;
   theme: string;
+  textInstances?: GeneratedImageConfiguration['textInstances'];
 }

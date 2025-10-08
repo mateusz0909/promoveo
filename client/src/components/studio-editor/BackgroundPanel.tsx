@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useMemo, useState, useRef } from 'react';
 import { useStudioEditor } from '@/context/StudioEditorContext';
 import { useAuth } from '@/context/AuthContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { 
   ArrowUpIcon, 
   ArrowDownIcon, 
@@ -69,6 +70,14 @@ const GRADIENT_PRESETS = [
   { name: 'Lavender', startColor: '#a18cd1', endColor: '#fbc2eb' },
   { name: 'Fire', startColor: '#f12711', endColor: '#f5af19' },
   { name: 'Ice', startColor: '#89f7fe', endColor: '#66a6ff' },
+  { name: 'Aurora', startColor: '#4facfe', endColor: '#00f2fe' },
+  { name: 'Galaxy', startColor: '#3a1c71', endColor: '#d76d77' },
+  { name: 'Coral Reef', startColor: '#ff9a8b', endColor: '#ff6a88' },
+  { name: 'Tropical', startColor: '#43cea2', endColor: '#185a9d' },
+  { name: 'Golden Hour', startColor: '#f6d365', endColor: '#fda085' },
+  { name: 'Citrus', startColor: '#fbd72b', endColor: '#f9484a' },
+  { name: 'Lime Pop', startColor: '#a8ff78', endColor: '#78ffd6' },
+  { name: 'Deep Space', startColor: '#000428', endColor: '#004e92' },
 ];
 
 export function BackgroundPanel() {
@@ -80,6 +89,16 @@ export function BackgroundPanel() {
     global.backgroundType === 'solid' ? 'color' : 
     global.backgroundType === 'gradient' ? 'gradient' : 'image'
   );
+
+  const gradientPresetMatch = useMemo(() => {
+    if (global.backgroundType !== 'gradient') return null;
+    return GRADIENT_PRESETS.find(
+      (preset) =>
+        preset.startColor.toLowerCase() === global.backgroundGradient.startColor.toLowerCase() &&
+        preset.endColor.toLowerCase() === global.backgroundGradient.endColor.toLowerCase()
+    );
+  }, [global.backgroundType, global.backgroundGradient.endColor, global.backgroundGradient.startColor]);
+  const [isGradientPopoverOpen, setIsGradientPopoverOpen] = useState(false);
 
   // Handle tab change - automatically switch background type
   const handleTabChange = (newTab: 'color' | 'gradient' | 'image') => {
@@ -232,34 +251,46 @@ export function BackgroundPanel() {
   };
 
   return (
-    <Tabs value={activeTab} onValueChange={(value) => handleTabChange(value as 'color' | 'gradient' | 'image')} className="w-full">
-      <TabsList className="grid w-full grid-cols-3 mb-4">
-        <TabsTrigger value="color">Color</TabsTrigger>
-        <TabsTrigger value="gradient">Gradient</TabsTrigger>
-        <TabsTrigger value="image">Image</TabsTrigger>
+    <Tabs
+      value={activeTab}
+      onValueChange={(value) => handleTabChange(value as 'color' | 'gradient' | 'image')}
+      className="w-full space-y-5  border-border/60 bg-muted/20 px-4 py-4"
+    >
+      <TabsList className="grid w-full grid-cols-3 rounded-xl bg-muted/50 p-1">
+        <TabsTrigger value="color" className="rounded-lg py-2 text-xs font-medium">
+          Color
+        </TabsTrigger>
+        <TabsTrigger value="gradient" className="rounded-lg py-2 text-xs font-medium">
+          Gradient
+        </TabsTrigger>
+        <TabsTrigger value="image" className="rounded-lg py-2 text-xs font-medium">
+          Image
+        </TabsTrigger>
       </TabsList>
 
       {/* Color Tab */}
-      <TabsContent value="color" className="space-y-4">
-        <div>
-          <Label className="text-xs text-muted-foreground mb-2 block">Preset Colors</Label>
-          <div className="grid grid-cols-5 gap-2">
+      <TabsContent value="color" className="space-y-5">
+        <div className="space-y-2">
+          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            Preset Colors
+          </Label>
+          <div className="grid grid-cols-5 gap-2.5">
             {SOLID_COLORS.map((color) => (
               <button
                 key={color.value}
                 onClick={() => handleSolidColorChange(color.value)}
-                className={`relative w-full aspect-square rounded-lg border-2 transition-all hover:scale-105 ${
+                className={`relative w-full aspect-square rounded-xl border transition-transform hover:-translate-y-0.5 hover:shadow ${
                   global.backgroundType === 'solid' && global.backgroundSolid === color.value
-                    ? 'border-blue-500 ring-2 ring-blue-200'
-                    : 'border-neutral-200 hover:border-neutral-300'
+                    ? 'border-primary ring-2 ring-primary/30'
+                    : 'border-border/60 hover:border-border'
                 }`}
                 style={{ backgroundColor: color.value }}
                 title={color.name}
               >
                 {global.backgroundType === 'solid' && global.backgroundSolid === color.value && (
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-4 h-4 bg-white rounded-full shadow-md flex items-center justify-center">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full" />
+                    <div className="w-4 h-4 bg-background rounded-full shadow flex items-center justify-center">
+                      <div className="w-2 h-2 bg-primary rounded-full" />
                     </div>
                   </div>
                 )}
@@ -268,18 +299,21 @@ export function BackgroundPanel() {
           </div>
         </div>
 
-        <div className="pt-2">
-          <Label htmlFor="custom-color" className="text-xs text-muted-foreground mb-2 block">
+        <div className="space-y-3">
+          <Label
+            htmlFor="custom-color"
+            className="text-xs font-medium text-muted-foreground uppercase tracking-wide"
+          >
             Custom Color
           </Label>
-          <div className="flex gap-2">
-            <div className="flex-1 flex items-center gap-2 border border-neutral-200 rounded-lg px-3 py-2">
+          <div className="flex gap-3">
+            <div className="flex-1 flex items-center gap-3 border border-border/70 rounded-lg px-3 py-2 bg-background/80">
               <input
                 type="color"
                 id="custom-color"
                 value={global.backgroundType === 'solid' ? global.backgroundSolid : '#ffffff'}
                 onChange={(e) => handleSolidColorChange(e.target.value)}
-                className="w-10 h-10 rounded-full cursor-pointer border-2 border-neutral-200"
+                className="w-11 h-11 rounded-full cursor-pointer border border-border/70 shadow-sm"
               />
               <Input
                 type="text"
@@ -290,7 +324,7 @@ export function BackgroundPanel() {
                     handleSolidColorChange(value);
                   }
                 }}
-                className="flex-1 border-0 shadow-none focus-visible:ring-0 px-0 h-auto font-mono text-sm"
+                className="flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0 px-0 h-auto font-mono text-xs"
                 placeholder="#000000"
               />
             </div>
@@ -299,55 +333,101 @@ export function BackgroundPanel() {
       </TabsContent>
 
       {/* Gradient Tab */}
-      <TabsContent value="gradient" className="space-y-4">
-        <div>
-          <Label className="text-xs text-muted-foreground mb-2 block">Preset Gradients</Label>
-          <div className="grid grid-cols-2 gap-2">
-            {GRADIENT_PRESETS.map((preset) => (
-              <button
-                key={preset.name}
-                onClick={() => handleGradientChange(preset.startColor, preset.endColor)}
-                className={`relative h-16 rounded-lg border-2 transition-all hover:scale-105 ${
-                  global.backgroundType === 'gradient' &&
-                  global.backgroundGradient.startColor === preset.startColor &&
-                  global.backgroundGradient.endColor === preset.endColor
-                    ? 'border-blue-500 ring-2 ring-blue-200'
-                    : 'border-neutral-200 hover:border-neutral-300'
-                }`}
-                style={{
-                  background: `linear-gradient(135deg, ${preset.startColor}, ${preset.endColor})`,
-                }}
-                title={preset.name}
+      <TabsContent value="gradient" className="space-y-5">
+        <div className="space-y-2">
+          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            Preset Gradients
+          </Label>
+          <Popover open={isGradientPopoverOpen} onOpenChange={setIsGradientPopoverOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                className="flex w-full items-center gap-3 rounded-xl border border-border/70 bg-background/70 px-4 py-3 text-left min-h-[64px]"
               >
-                {global.backgroundType === 'gradient' &&
-                  global.backgroundGradient.startColor === preset.startColor &&
-                  global.backgroundGradient.endColor === preset.endColor && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-5 h-5 bg-white rounded-full shadow-md flex items-center justify-center">
-                      <div className="w-2.5 h-2.5 bg-blue-500 rounded-full" />
-                    </div>
-                  </div>
-                )}
-                <span className="absolute bottom-1 left-2 text-[10px] font-medium text-white drop-shadow-md">
-                  {preset.name}
+                <span
+                  className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg border border-border/60"
+                  style={{
+                    background: `linear-gradient(135deg, ${global.backgroundGradient.startColor}, ${global.backgroundGradient.endColor})`,
+                  }}
+                />
+                <div className="flex min-w-0 flex-1 flex-col text-left">
+                  <span className="text-sm font-semibold leading-tight whitespace-normal break-words">
+                    {gradientPresetMatch ? gradientPresetMatch.name : 'Custom gradient'}
+                  </span>
+                  <span className="text-xs text-muted-foreground leading-tight whitespace-normal break-words">
+                    Tap to browse curated gradients
+                  </span>
+                </div>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[420px] rounded-xl border border-border/70 bg-card/95 p-4 shadow-lg">
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Gradient Library
                 </span>
-              </button>
-            ))}
-          </div>
+                {gradientPresetMatch ? (
+                  <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                    {gradientPresetMatch.name}
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                    Custom
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+                {GRADIENT_PRESETS.map((preset) => {
+                  const isActive =
+                    gradientPresetMatch?.name === preset.name;
+                  return (
+                    <button
+                      type="button"
+                      key={preset.name}
+                      onClick={() => {
+                        handleGradientChange(preset.startColor, preset.endColor);
+                        setIsGradientPopoverOpen(false);
+                      }}
+                      className={`group relative h-16 rounded-xl border text-left transition-transform hover:-translate-y-0.5 hover:shadow-md ${
+                        isActive
+                          ? 'border-primary ring-2 ring-primary/30'
+                          : 'border-border/60 hover:border-border'
+                      }`}
+                      style={{
+                        background: `linear-gradient(135deg, ${preset.startColor}, ${preset.endColor})`,
+                      }}
+                    >
+                      <span className="absolute bottom-1 left-2 text-[10px] font-semibold text-white drop-shadow">
+                        {preset.name}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-3 rounded-lg border border-dashed border-border/70 px-3 py-2 text-xs text-muted-foreground">
+                Customize colors below to craft your own gradient.
+              </div>
+            </PopoverContent>
+          </Popover>
+
         </div>
 
-        <div className="space-y-3 pt-2 border-t">
-          <Label className="text-xs text-muted-foreground mb-2 block">Custom Gradient</Label>
+        <div className="space-y-4 pt-3 border-t border-border/60">
+          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            Custom Gradient
+          </Label>
           
           <div className="space-y-2">
-            <Label htmlFor="start-color" className="text-xs">Start Color</Label>
-            <div className="flex gap-2 items-center">
+            <Label htmlFor="start-color" className="text-xs text-muted-foreground">
+              Start Color
+            </Label>
+            <div className="flex gap-3 items-center">
               <input
                 type="color"
                 id="start-color"
                 value={global.backgroundGradient.startColor}
                 onChange={(e) => handleGradientChange(e.target.value, global.backgroundGradient.endColor)}
-                className="w-12 h-12 rounded-full cursor-pointer border-2 border-neutral-200"
+                className="w-12 h-12 rounded-full cursor-pointer border border-border/70 shadow-sm"
               />
               <Input
                 type="text"
@@ -358,21 +438,23 @@ export function BackgroundPanel() {
                     handleGradientChange(value, global.backgroundGradient.endColor);
                   }
                 }}
-                className="flex-1 font-mono text-sm"
+                className="flex-1 font-mono text-xs"
                 placeholder="#667eea"
               />
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="end-color" className="text-xs">End Color</Label>
-            <div className="flex gap-2 items-center">
+            <Label htmlFor="end-color" className="text-xs text-muted-foreground">
+              End Color
+            </Label>
+            <div className="flex gap-3 items-center">
               <input
                 type="color"
                 id="end-color"
                 value={global.backgroundGradient.endColor}
                 onChange={(e) => handleGradientChange(global.backgroundGradient.startColor, e.target.value)}
-                className="w-12 h-12 rounded-full cursor-pointer border-2 border-neutral-200"
+                className="w-12 h-12 rounded-full cursor-pointer border border-border/70 shadow-sm"
               />
               <Input
                 type="text"
@@ -383,24 +465,30 @@ export function BackgroundPanel() {
                     handleGradientChange(global.backgroundGradient.startColor, value);
                   }
                 }}
-                className="flex-1 font-mono text-sm"
+                className="flex-1 font-mono text-xs"
                 placeholder="#764ba2"
               />
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="gradient-direction" className="text-xs">Direction</Label>
+            <Label htmlFor="gradient-direction" className="text-xs text-muted-foreground">
+              Direction
+            </Label>
             <Select
               value={global.backgroundGradient.angle.toString()}
-              onValueChange={(value) => handleGradientAngleChange(parseInt(value))}
+              onValueChange={(value: string) => handleGradientAngleChange(parseInt(value, 10))}
             >
-              <SelectTrigger id="gradient-direction" className="w-full">
+              <SelectTrigger id="gradient-direction" className="w-full text-xs h-9">
                 <SelectValue placeholder="Select direction" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent align="start" className="w-[220px]">
                 {GRADIENT_DIRECTIONS.map((direction) => (
-                  <SelectItem key={direction.angle} value={direction.angle.toString()}>
+                  <SelectItem
+                    key={direction.angle}
+                    value={direction.angle.toString()}
+                    className="flex items-center gap-3 text-xs"
+                  >
                     <div className="flex items-center gap-2">
                       {direction.icon && <direction.icon className="h-4 w-4" />}
                       <span>{direction.name}</span>
@@ -486,8 +574,8 @@ export function BackgroundPanel() {
                 Fit Mode
               </Label>
               <Select
-                value={global.backgroundImage.fit}
-                onValueChange={handleImageFitChange}
+                value={global.backgroundImage.fit ?? 'cover'}
+                onValueChange={(value: 'cover' | 'contain' | 'fill' | 'tile') => handleImageFitChange(value)}
               >
                 <SelectTrigger id="image-fit" className="w-full">
                   <SelectValue />
@@ -520,7 +608,6 @@ export function BackgroundPanel() {
                 </SelectContent>
               </Select>
             </div>
-
             {/* Opacity Control */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">

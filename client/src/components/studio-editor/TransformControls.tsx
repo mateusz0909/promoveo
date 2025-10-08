@@ -19,6 +19,7 @@ interface TransformControlsProps {
   width: number;
   height: number;
   rotation: number; // in degrees
+  baseWidth?: number;
   
   // Display scale (canvas size / display size)
   displayScale: number;
@@ -39,6 +40,7 @@ interface TransformControlsProps {
   showRotationHandle?: boolean;
   showScaleHandles?: boolean;
   hideTopBottomHandles?: boolean; // New: hide top and bottom handles for text
+  showBoundingBox?: boolean; // New: show/hide the dotted bounding box
   minScale?: number;
   maxScale?: number;
 }
@@ -56,6 +58,7 @@ export function TransformControls({
   width,
   height,
   rotation,
+  baseWidth = 700,
   displayScale,
   onTransformStart,
   onTransform,
@@ -63,6 +66,7 @@ export function TransformControls({
   showRotationHandle = true,
   showScaleHandles = true,
   hideTopBottomHandles = false,
+  showBoundingBox = true,
   minScale = 0.1,
   maxScale = 5.0,
 }: TransformControlsProps) {
@@ -117,11 +121,11 @@ export function TransformControls({
       width,
       height,
       rotation,
-      scale: width / 700, // Assuming base width is 700
+      scale: width / baseWidth,
     });
     
     onTransformStart?.();
-  }, [x, y, width, height, rotation, displayX, displayY, displayWidth, displayHeight, onTransformStart]);
+  }, [x, y, width, height, rotation, displayX, displayY, displayWidth, displayHeight, baseWidth, onTransformStart]);
 
   // Handle mouse move during drag
   useEffect(() => {
@@ -140,8 +144,8 @@ export function TransformControls({
         
         const currentAngleDeg = (currentAngle * 180) / Math.PI - 90;
         
-        // Calculate rotation delta from initial grab point
-        let rotationDelta = currentAngleDeg - initialRotation;
+  // Calculate rotation delta from initial grab point
+  const rotationDelta = currentAngleDeg - initialRotation;
         
         // Calculate new rotation
         let newRotation = initialTransform.rotation + rotationDelta;
@@ -212,7 +216,7 @@ export function TransformControls({
         }
 
         // Calculate final scale
-        const scale = newWidth / 700; // Assuming base width is 700
+  const scale = newWidth / baseWidth;
         
         // Clamp scale to limits
         if (scale >= minScale && scale <= maxScale) {
@@ -243,7 +247,7 @@ export function TransformControls({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [activeHandle, dragStart, initialTransform, initialRotation, displayScale, displayX, displayY, displayWidth, displayHeight, onTransform, onTransformEnd, minScale, maxScale]);
+  }, [activeHandle, dragStart, initialTransform, initialRotation, displayScale, displayX, displayY, displayWidth, displayHeight, baseWidth, onTransform, onTransformEnd, minScale, maxScale]);
 
   // Render handle
   const renderHandle = (type: HandleType, style: React.CSSProperties) => {
@@ -301,18 +305,20 @@ export function TransformControls({
       }}
     >
       {/* Bounding box - using outline to render outside the bounds */}
-      <div 
-        className="absolute pointer-events-none" 
-        style={{
-          left: '0',
-          top: '0',
-          width: '100%',
-          height: '100%',
-          outline: '2px dashed #3b82f6',
-          outlineOffset: '4px',
-          borderRadius: '2px',
-        }} 
-      />
+      {showBoundingBox && (
+        <div
+          className="absolute pointer-events-none"
+          style={{
+            left: '0',
+            top: '0',
+            width: '100%',
+            height: '100%',
+            outline: '2px solid #1d4ed8',
+            outlineOffset: '6px',
+            borderRadius: '0px',
+          }}
+        />
+      )}
 
       {/* Rotation handle (top center, extended above box) */}
       {showRotationHandle && renderHandle('rotation', {

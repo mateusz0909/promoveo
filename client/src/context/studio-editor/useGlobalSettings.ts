@@ -2,15 +2,18 @@ import { useCallback } from 'react';
 import type { GlobalSettings } from './types';
 
 export function useGlobalSettings(
-  setGlobal: React.Dispatch<React.SetStateAction<GlobalSettings>>
+  setGlobal: React.Dispatch<React.SetStateAction<GlobalSettings>>,
+  markAllScreenshotsDirty: () => void
 ) {
   const updateBackground = useCallback((settings: Partial<GlobalSettings>) => {
+    markAllScreenshotsDirty();
     setGlobal(prev => ({ ...prev, ...settings }));
-  }, [setGlobal]);
+  }, [setGlobal, markAllScreenshotsDirty]);
 
   const updateDeviceFrame = useCallback((device: string) => {
+    markAllScreenshotsDirty();
     setGlobal(prev => ({ ...prev, deviceFrame: device }));
-  }, [setGlobal]);
+  }, [setGlobal, markAllScreenshotsDirty]);
 
   return {
     updateBackground,

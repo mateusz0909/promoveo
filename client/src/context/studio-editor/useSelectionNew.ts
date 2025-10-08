@@ -11,16 +11,31 @@ export function useSelection() {
   const [selection, setSelection] = useState<SelectionState>({
     screenshotIndex: null,
     elementId: null,
+    selectedElementIds: [],
     isEditing: false,
   });
 
   /**
    * Select an element
    */
-  const selectElement = useCallback((screenshotIndex: number, elementId: string | null) => {
+  const selectElement = useCallback((
+    screenshotIndex: number,
+    elementId: string | null
+  ) => {
+    if (elementId === null) {
+      setSelection({
+        screenshotIndex,
+        elementId: null,
+        selectedElementIds: [],
+        isEditing: false,
+      });
+      return;
+    }
+
     setSelection({
       screenshotIndex,
       elementId,
+      selectedElementIds: [elementId],
       isEditing: false,
     });
   }, []);
@@ -32,6 +47,7 @@ export function useSelection() {
     setSelection({
       screenshotIndex: null,
       elementId: null,
+      selectedElementIds: [],
       isEditing: false,
     });
   }, []);
@@ -42,6 +58,7 @@ export function useSelection() {
   const startEditing = useCallback(() => {
     setSelection(prev => ({
       ...prev,
+      selectedElementIds: prev.selectedElementIds.length ? prev.selectedElementIds : prev.elementId ? [prev.elementId] : [],
       isEditing: true,
     }));
   }, []);

@@ -25,14 +25,17 @@ async function cleanupUnreferencedImages() {
 
     // Get all currently referenced image URLs from database
     const generatedImages = await prisma.generatedImage.findMany({
-      select: { generatedImageUrl: true }
+      select: { sourceScreenshotUrl: true }
     });
 
     const referencedUrls = new Set(
-      generatedImages.map(img => {
-        const url = new URL(img.generatedImageUrl);
-        return url.pathname.split('/').slice(-1)[0]; // Extract just the filename
-      })
+      generatedImages
+        .map(img => img.sourceScreenshotUrl)
+        .filter(Boolean)
+        .map(urlString => {
+          const url = new URL(urlString);
+          return url.pathname.split('/').slice(-1)[0];
+        })
     );
 
     // Find orphaned files (versioned files that are no longer referenced)

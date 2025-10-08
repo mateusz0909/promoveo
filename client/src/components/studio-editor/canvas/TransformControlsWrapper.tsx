@@ -6,32 +6,34 @@ import { useRef, useEffect, useState } from 'react';
 import { TransformControls } from '../TransformControls';
 
 interface TransformControlsWrapperProps {
-  screenshot: any;
   index: number;
   elementId?: string; // Instance ID for mockup instances (e.g., 'mockup-123')
   mockupX: number;
   mockupY: number;
   mockupWidth: number;
   mockupHeight: number;
+  baseWidth: number;
   canvasWidth: number;
   canvasHeight: number;
   zoom: number;
+  rotation: number;
   updateScreenshotPosition: (index: number, element: 'mockup' | string, position: { x: number; y: number }) => void;
   updateScreenshotScale: (index: number, scale: number, elementId?: string) => void;
   updateScreenshotRotation: (index: number, rotation: number, elementId?: string) => void;
 }
 
 export function TransformControlsWrapper({
-  screenshot,
   index,
   elementId, // Instance ID for mockup instances
   mockupX,
   mockupY,
   mockupWidth,
   mockupHeight,
+  baseWidth,
   canvasWidth,
   canvasHeight,
   zoom,
+  rotation,
   updateScreenshotPosition,
   updateScreenshotScale,
   updateScreenshotRotation,
@@ -69,7 +71,8 @@ export function TransformControlsWrapper({
         y={mockupY}
         width={mockupWidth}
         height={mockupHeight}
-        rotation={screenshot.mockupRotation || 0}
+        rotation={rotation}
+        baseWidth={baseWidth}
         displayScale={displayScale}
         onTransform={(transform) => {
           // Update position (use elementId for instances, 'mockup' for legacy)
@@ -86,6 +89,7 @@ export function TransformControlsWrapper({
         }}
         showRotationHandle={true}
         showScaleHandles={true}
+        showBoundingBox={true}
         minScale={0.3}
         maxScale={2.5}
       />

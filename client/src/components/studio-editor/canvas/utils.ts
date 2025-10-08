@@ -1,3 +1,5 @@
+import { resolveDevicePreset } from '@/constants/devicePresets';
+
 /**
  * Canvas utility functions for text wrapping and color manipulation
  */
@@ -29,7 +31,12 @@ export function interpolateGradient(color1: string, color2: string, factor: numb
 /**
  * Helper function to wrap text to fit within a maximum width
  */
-export function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+export function wrapText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  letterSpacing = 0
+): string[] {
   // First split by manual line breaks
   const paragraphs = text.split('\n');
   const lines: string[] = [];
@@ -48,8 +55,11 @@ export function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: 
     for (const word of words) {
       const testLine = currentLine ? `${currentLine} ${word}` : word;
       const metrics = ctx.measureText(testLine);
-      
-      if (metrics.width > maxWidth && currentLine) {
+      const charCount = Math.max(Array.from(testLine).length - 1, 0);
+      const additionalSpacing = letterSpacing * charCount;
+      const testWidth = Math.max(metrics.width + additionalSpacing, 0);
+
+      if (testWidth > maxWidth && currentLine) {
         lines.push(currentLine);
         currentLine = word;
       } else {
@@ -65,9 +75,79 @@ export function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: 
   return lines;
 }
 
+export interface CanvasMetrics {
+  preset: ReturnType<typeof resolveDevicePreset>;
+  width: number;
+  height: number;
+  fontScaleMultiplier: number;
+  defaultTextWidth: number;
+}
+
+export function getCanvasMetrics(deviceFrame?: string | null): CanvasMetrics {
+  const preset = resolveDevicePreset(deviceFrame);
+
+  return {
+    preset,
+    width: preset.canvasWidth,
+    height: preset.canvasHeight,
+    fontScaleMultiplier: preset.fontScaleMultiplier,
+    defaultTextWidth: preset.defaultTextWidth,
+  };
+}
+
 /**
- * Canvas rendering constants
+ * Draw a single line of text while preserving kerning and applying custom letter spacing.
  */
-export const CANVAS_WIDTH = 1200;
-export const CANVAS_HEIGHT = 2600;
-export const FONT_SCALE_MULTIPLIER = 3.4; // 1200px canvas / ~350px display
+export function drawLineWithLetterSpacing(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  anchorX: number,
+  y: number,
+  align: 'left' | 'center' | 'right',
+  letterSpacing: number
+): void {
+  const previousAlign = ctx.textAlign;
+  ctx.textAlign = align;
+
+  if (!text || letterSpacing === 0) {
+    ctx.fillText(text, anchorX, y);
+    ctx.textAlign = previousAlign;
+    return;
+  }
+
+  const chars = Array.from(text);
+  const metrics = ctx.measureText(text);
+  const spacingTotal = letterSpacing * Math.max(chars.length - 1, 0);
+  const lineWidth = Math.max(metrics.width + spacingTotal, 0);
+
+  let startX = anchorX;
+  if (align === 'center') {
+    startX -= lineWidth / 2;
+  } else if (align === 'right') {
+    startX -= lineWidth;
+  }
+
+  ctx.textAlign = 'left';
+
+  let currentX = startX;
+  let prefix = '';
+  let previousWidth = 0;
+
+  chars.forEach((char, index) => {
+    const nextPrefix = prefix + char;
+    const nextWidth = ctx.measureText(nextPrefix).width;
+    const charWidth = nextWidth - previousWidth;
+
+    ctx.fillText(char, currentX, y);
+
+    currentX += charWidth;
+    if (index < chars.length - 1) {
+      currentX += letterSpacing;
+    }
+
+    prefix = nextPrefix;
+    previousWidth = nextWidth;
+  });
+
+  ctx.textAlign = previousAlign;
+}

@@ -11,8 +11,14 @@ export default function ScreenshotsPanel() {
 
   const handleAddClick = async () => {
     setIsAdding(true);
-    await addScreenshot();
-    setIsAdding(false);
+    try {
+      await addScreenshot();
+    } catch (error) {
+      // Error is already handled in context with toast
+      console.error('Failed to add screenshot:', error);
+    } finally {
+      setIsAdding(false);
+    }
   };
 
   return (

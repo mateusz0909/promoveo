@@ -1,14 +1,18 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { StudioEditorProvider, useStudioEditor } from '@/context/StudioEditorContext';
 import { EditorTopToolbar } from './EditorTopToolbar';
 import { EditorLeftSidebar } from './EditorLeftSidebar';
 import { EditorBottomToolbar } from './EditorBottomToolbar';
 import { MultiScreenshotCanvas } from './MultiScreenshotCanvas';
 import type { GeneratedImage } from '@/types/project';
+import { resolveDevicePreset, DEFAULT_DEVICE_PRESET_ID } from '@/constants/devicePresets';
 
 interface StudioEditorLayoutProps {
   imageList: GeneratedImage[];
   projectId: string;
+  appName: string;
+  appDescription: string;
+  device?: string;
 }
 
 /**
@@ -16,7 +20,7 @@ interface StudioEditorLayoutProps {
  */
 function EditorContent() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { clearSelection, deleteElement, selection } = useStudioEditor();
+  const { clearSelection, deleteElement, removeScreenshot, selection } = useStudioEditor();
 
   // Handle clicks outside canvas to unfocus
   useEffect(() => {
@@ -42,17 +46,22 @@ function EditorContent() {
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Delete/Backspace - delete selected element
-      if ((event.key === 'Delete' || event.key === 'Backspace') && selection.elementId) {
-        // Prevent default only if an element is selected and we're not in a text input
+      const isDeleteKey = event.key === 'Delete' || event.key === 'Backspace';
+      if (isDeleteKey && selection.screenshotIndex !== null) {
         const target = event.target as HTMLElement;
-        const isTextInput = target.tagName === 'INPUT' || 
-                           target.tagName === 'TEXTAREA' || 
-                           target.contentEditable === 'true';
-        
-        if (!isTextInput && selection.screenshotIndex !== null) {
+        const isTextInput =
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.contentEditable === 'true';
+
+        if (!isTextInput) {
           event.preventDefault();
-          deleteElement(selection.screenshotIndex, selection.elementId);
+
+          if (selection.elementId) {
+            deleteElement(selection.screenshotIndex, selection.elementId);
+          } else {
+            void removeScreenshot(selection.screenshotIndex);
+          }
         }
       }
 
@@ -64,19 +73,19 @@ function EditorContent() {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [clearSelection, deleteElement, selection.screenshotIndex, selection.elementId]);
+  }, [clearSelection, deleteElement, removeScreenshot, selection.screenshotIndex, selection.elementId]);
 
   return (
-    <div ref={containerRef} className="flex flex-col h-full bg-background">
+  <div ref={containerRef} className="flex h-full min-w-0 flex-col bg-background">
       {/* Top Toolbar - context-aware editing controls */}
       <EditorTopToolbar />
       
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex min-w-0 flex-1 overflow-hidden">
         {/* Left Sidebar - global settings */}
         <EditorLeftSidebar />
         
         {/* Main Canvas Area */}
-        <div className="flex-1 relative overflow-hidden">
+        <div className="relative flex-1 min-w-0 overflow-hidden">
           <MultiScreenshotCanvas />
         </div>
       </div>
@@ -94,8 +103,24 @@ function EditorContent() {
 export function StudioEditorLayout({ 
   imageList, 
   projectId,
+  appName,
+  appDescription,
+  device,
 }: StudioEditorLayoutProps) {
   const [isInitializing, setIsInitializing] = useState(true);
+
+  const initialDeviceFrame = useMemo(() => {
+    if (device) {
+      return resolveDevicePreset(device).id;
+    }
+
+    const configurationFrame = imageList[0]?.configuration?.deviceFrame;
+    if (configurationFrame) {
+      return configurationFrame;
+    }
+
+    return DEFAULT_DEVICE_PRESET_ID;
+  }, [device, imageList]);
 
   useEffect(() => {
     // Simulate initialization (loading fonts, preparing canvas, etc.)
@@ -115,7 +140,13 @@ export function StudioEditorLayout({
   }
 
   return (
-    <StudioEditorProvider initialScreenshots={imageList} projectId={projectId}>
+    <StudioEditorProvider 
+      initialScreenshots={imageList} 
+      projectId={projectId}
+      appName={appName}
+      appDescription={appDescription}
+      deviceFrame={initialDeviceFrame}
+    >
       <EditorContent />
     </StudioEditorProvider>
   );

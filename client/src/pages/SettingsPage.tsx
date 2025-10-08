@@ -4,7 +4,6 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { UserAvatar } from "@/components/UserAvatar";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
@@ -17,16 +16,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  PaintBrushIcon,
-  UserIcon,
-  TrashIcon,
-  ArrowLeftIcon,
-} from "@heroicons/react/24/outline";
+import { PaintBrushIcon, UserIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { useNavigate } from "react-router-dom";
+import type { User } from "@supabase/supabase-js";
 
 // Get display name from user
-const getDisplayName = (user: any): string => {
+const getDisplayName = (user: User | null): string => {
   if (!user) return "Unknown User";
 
   const fullName = user.user_metadata?.full_name || user.user_metadata?.name;
@@ -159,25 +154,8 @@ export const SettingsPage = () => {
 
                 {/* Theme Options */}
                 <div className="space-y-4">
-                  {/* <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <label className="text-base font-medium">Dark Mode</label>
-                      <div className="text-sm text-muted-foreground">
-                        Use dark theme as default
-                      </div>
-                    </div>
-                    <Switch
-                      checked={theme === "dark"}
-                      onCheckedChange={(checked) => 
-                        setTheme(checked ? "dark" : "light")
-                      }
-                    />
-                  </div> */}
-
-                  {/* <Separator />s */}
-
                   <div className="space-y-3">
-                                        <RadioGroup value={theme} onValueChange={setTheme} className="space-y-0">
+                    <RadioGroup value={theme} onValueChange={setTheme} className="space-y-0">
                       <div className="flex items-center space-x-2">
                         <RadioGroupItem value="light" id="light" />
                         <Label htmlFor="light" className="text-sm font-medium cursor-pointer">

@@ -1,13 +1,13 @@
-import type { VisualInstance } from '@/context/StudioEditorContext';
+import type { GeneratedImageConfiguration } from '@/types/project';
+
+type VisualInstance = NonNullable<GeneratedImageConfiguration['visuals']>[number];
 
 /**
  * Renders custom visual elements (uploaded images) on the canvas
  */
 export async function renderVisuals(
   ctx: CanvasRenderingContext2D,
-  visuals: VisualInstance[],
-  canvasWidth: number,
-  canvasHeight: number
+  visuals: VisualInstance[]
 ): Promise<void> {
   if (!visuals || visuals.length === 0) return;
 
@@ -15,7 +15,7 @@ export async function renderVisuals(
   const sortedVisuals = [...visuals].sort((a, b) => a.zIndex - b.zIndex);
 
   for (const visual of sortedVisuals) {
-    await renderVisual(ctx, visual, canvasWidth, canvasHeight);
+    await renderVisual(ctx, visual);
   }
 }
 
@@ -24,9 +24,7 @@ export async function renderVisuals(
  */
 async function renderVisual(
   ctx: CanvasRenderingContext2D,
-  visual: VisualInstance,
-  _canvasWidth: number,
-  _canvasHeight: number
+  visual: VisualInstance
 ): Promise<void> {
   try {
     // Load the image

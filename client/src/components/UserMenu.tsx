@@ -15,9 +15,10 @@ import {
   ArrowRightOnRectangleIcon,
 } from "@heroicons/react/24/outline";
 import { Link } from "react-router-dom";
+import type { User } from "@supabase/supabase-js";
 
 // Get display name from user
-const getDisplayName = (user: any): string => {
+const getDisplayName = (user: User | null): string => {
   if (!user) return "Unknown User";
 
   const fullName = user.user_metadata?.full_name || user.user_metadata?.name;

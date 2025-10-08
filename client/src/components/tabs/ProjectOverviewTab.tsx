@@ -20,21 +20,12 @@ import { useState, useEffect, useCallback } from 'react';
 import type { ComponentType, SVGProps } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '../../context/AuthContext';
-
-interface GeneratedProjectImage {
-  sourceScreenshotUrl?: string | null;
-  generatedImageUrl?: string | null;
-  accentColor?: string | null;
-  configuration?: {
-    heading?: string | null;
-    subheading?: string | null;
-  } | null;
-}
+import type { GeneratedImage } from '@/types/project';
 
 interface ProjectOverviewTabProps {
   appName: string;
   appDescription: string;
-  generatedImages?: GeneratedProjectImage[];
+  generatedImages?: GeneratedImage[];
   onAppNameChange: (name: string) => void;
   onAppDescriptionChange: (description: string) => void;
   onDeleteProject: () => Promise<void>;

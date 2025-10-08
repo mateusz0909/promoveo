@@ -194,74 +194,6 @@ const projectController = {
     }
   },
 
-  // Update project image (legacy endpoint)
-  async updateProjectImage(req, res) {
-    const { projectId, imageId } = req.params;
-    const { configuration } = req.body;
-    const file = req.file;
-
-    console.log('updateProjectImage: Starting', { projectId, imageId, hasFile: !!file, hasConfig: !!configuration });
-
-    if (!file) {
-      console.error('updateProjectImage: No file provided');
-      return res.status(400).json({ error: 'Image file is required.' });
-    }
-
-    try {
-      // Multer is configured with memoryStorage, so file.buffer contains the image data
-      const imageBuffer = file.buffer;
-      console.log('updateProjectImage: File buffer received, size:', imageBuffer.length);
-
-      console.log('updateProjectImage: Finding image in database');
-      const generatedImage = await prisma.generatedImage.findUnique({
-        where: { id: imageId },
-      });
-
-      if (!generatedImage) {
-        console.error('updateProjectImage: Image not found in database');
-        return res.status(404).json({ error: 'Image not found.' });
-      }
-      console.log('updateProjectImage: Image found in database');
-
-      console.log('updateProjectImage: Uploading to Supabase');
-      const { newImageUrl, oldImagePath } = await replaceImageInSupabase(
-        generatedImage.generatedImageUrl,
-        imageBuffer,
-        file.mimetype
-      );
-      console.log('updateProjectImage: Supabase upload successful', { newImageUrl });
-
-      const parsedConfiguration = configuration ? JSON.parse(configuration) : generatedImage.configuration;
-      console.log('updateProjectImage: Configuration parsed');
-
-      console.log('updateProjectImage: Updating database');
-      await prisma.generatedImage.update({
-        where: { id: imageId },
-        data: {
-          generatedImageUrl: newImageUrl,
-          configuration: parsedConfiguration,
-        },
-      });
-      console.log('updateProjectImage: Database update successful');
-
-      // Cleanup old version in background (non-blocking)
-      setImmediate(() => {
-        cleanupOldImageVersion(oldImagePath);
-      });
-
-      // No file cleanup needed with memoryStorage - buffer is automatically released
-
-      console.log('updateProjectImage: Complete, returning success');
-      res.status(200).json({ imageUrl: newImageUrl });
-    } catch (error) {
-      console.error('updateProjectImage: ERROR occurred');
-      console.error('Error type:', error.constructor.name);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      res.status(500).json({ error: 'Failed to update image.' });
-    }
-  },
-
   // Update image configuration only (no image regeneration)
   async updateImageConfiguration(req, res) {
     const { projectId, imageId } = req.params;
@@ -376,47 +308,6 @@ const projectController = {
     } catch (error) {
       console.error('replaceSourceScreenshot: ERROR occurred', error);
       res.status(500).json({ error: 'Failed to replace screenshot' });
-    }
-  },
-
-  // Save project (legacy endpoint)
-  async saveProject(req, res) {
-    const { inputAppName, inputAppDescription, generatedAsoText, generatedImages } = req.body;
-    const userId = req.user.id;
-    const userEmail = req.user.email;
-
-    try {
-      // Ensure the user exists in our public User table
-      await prisma.user.upsert({
-        where: { id: userId },
-        update: { email: userEmail },
-        create: { id: userId, email: userEmail },
-      });
-
-      const newProject = await prisma.project.create({
-        data: {
-          name: inputAppName, // Use inputAppName for consistency
-          inputAppName,
-          inputAppDescription,
-          generatedAsoText,
-          userId, // Link the project to the user
-          generatedImages: {
-            create: generatedImages.map(img => ({ // Assumes generatedImages is an array
-              sourceScreenshotUrl: img.sourceUrl,
-              generatedImageUrl: img.generatedUrl,
-              configuration: img.configuration,
-            })),
-          },
-        },
-        include: {
-          generatedImages: true, // Include the created images in the response
-        },
-      });
-
-      res.status(201).json(newProject);
-    } catch (error) {
-      console.error("Failed to save project:", error);
-      res.status(500).json({ error: "Could not save the project." });
     }
   },
 
@@ -645,8 +536,8 @@ const projectController = {
       const { uploadImageToSupabase } = require('../services/storageService');
 
       const placeholderBuffer = await generatePlaceholderImage({
-        width: 1200,
-        height: 2600,
+        width: 1242,
+        height: 2688,
         text: 'New Screenshot',
         device: project.device || 'iPhone 15 Pro'
       });
@@ -654,20 +545,12 @@ const projectController = {
       // Upload placeholder to Supabase Storage
       const timestamp = Date.now();
       const sourceFileName = `placeholder-source-${timestamp}.png`;
-      const generatedFileName = `placeholder-generated-${timestamp}.png`;
 
-      console.log('create-screenshot: Uploading placeholder images to Supabase');
+      console.log('create-screenshot: Uploading placeholder screenshot to Supabase');
 
       const sourceUrl = await uploadImageToSupabase(
         placeholderBuffer,
         sourceFileName,
-        'image/png',
-        userId
-      );
-
-      const generatedUrl = await uploadImageToSupabase(
-        placeholderBuffer,
-        generatedFileName,
         'image/png',
         userId
       );
@@ -682,23 +565,23 @@ const projectController = {
         data: {
           projectId,
           sourceScreenshotUrl: sourceUrl,
-          generatedImageUrl: generatedUrl,
           accentColor: '#667eea',
           displayOrder: finalDisplayOrder,
           configuration: {
+            theme: 'light',
             heading: 'Tap to edit heading',
             subheading: 'Tap to edit subheading',
             headingFont: 'Inter',
-            headingFontSize: 64,
-            subheadingFontSize: 32,
-            mockupX: 0,
-            mockupY: 0,
+            headingFontSize: 20,
+            subheadingFontSize: 20,
+            mockupX: 10.158730158730009,
+            mockupY: 426.66666666666674,
             mockupScale: 1,
             mockupRotation: 0,
-            headingX: 100,
-            headingY: 100,
-            subheadingX: 100,
-            subheadingY: 300,
+            headingX: 356.69742386873867,
+            headingY: 275.2380952380954,
+            subheadingX: 247.30158730158723,
+            subheadingY: 609.8412698412696,
             headingColor: '#000000',
             subheadingColor: '#666666',
             headingAlign: 'left',
@@ -707,14 +590,14 @@ const projectController = {
             subheadingLetterSpacing: 0,
             headingLineHeight: 1.2,
             subheadingLineHeight: 1.4,
-            theme: 'light',
             deviceFrame: project.device || 'iPhone 15 Pro',
             backgroundType: 'gradient',
             backgroundGradient: {
               startColor: '#667eea',
               endColor: '#764ba2',
               angle: 135
-            }
+            },
+            visuals: []
           }
         }
       });
@@ -767,8 +650,7 @@ const projectController = {
       // Delete from Supabase Storage
       console.log('delete-screenshot: Deleting images from Supabase Storage');
       await Promise.allSettled([
-        deleteProjectAsset(image.sourceScreenshotUrl),
-        deleteProjectAsset(image.generatedImageUrl)
+        deleteProjectAsset(image.sourceScreenshotUrl)
       ]);
 
       // Delete from database

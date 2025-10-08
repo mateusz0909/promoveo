@@ -21,7 +21,7 @@ interface ImageEditorProps {
   imageData: GeneratedImage | null;
   imageIndex: number | null;
   fonts: string[];
-  onSave: (newImageUrl: string, imageIndex: number, configuration: GeneratedImageConfiguration) => Promise<void>;
+  onSave: (imageIndex: number, configuration: GeneratedImageConfiguration, accentColor?: string | null) => Promise<void>;
   projectId?: string;
   device?: string;
   appName?: string;

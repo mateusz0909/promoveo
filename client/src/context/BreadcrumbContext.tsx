@@ -1,5 +1,4 @@
-import React, { createContext, useState, useContext } from 'react';
-import type { ReactNode } from 'react';
+import { createContext, useState, useContext, type ReactNode } from 'react';
 
 interface BreadcrumbPart {
   name: string;

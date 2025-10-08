@@ -17,16 +17,16 @@ try {
 /**
  * Generates a placeholder screenshot image with gradient background
  * @param {Object} options - Configuration options
- * @param {number} options.width - Canvas width (default: 1200)
- * @param {number} options.height - Canvas height (default: 2600)
+ * @param {number} options.width - Canvas width (default: 1242)
+ * @param {number} options.height - Canvas height (default: 2688)
  * @param {string} options.text - Main text to display (default: 'New Screenshot')
  * @param {string} options.device - Device name to display (default: 'iPhone 15 Pro')
  * @returns {Promise<Buffer>} - PNG image buffer
  */
 async function generatePlaceholderImage(options = {}) {
   const {
-    width = 1200,
-    height = 2600,
+  width = 1242,
+  height = 2688,
     text = 'New Screenshot',
     device = 'iPhone 15 Pro'
   } = options;

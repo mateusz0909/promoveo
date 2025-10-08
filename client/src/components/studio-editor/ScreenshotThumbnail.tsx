@@ -30,8 +30,11 @@ export default function ScreenshotThumbnail({
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleSelect = () => {
-    selectElement(index, 'heading');
+    selectElement(index, null);
   };
+
+  const headingText = screenshot.image.configuration?.heading ?? `Screenshot ${index + 1}`;
+  const subheadingText = screenshot.image.configuration?.subheading ?? '';
 
   const handleDelete = async () => {
     setIsDeleting(true);
@@ -117,10 +120,10 @@ export default function ScreenshotThumbnail({
               </div>
               <div className="flex-1">
                 <p className="text-sm font-medium text-gray-900 dark:text-white">
-                  {screenshot.heading}
+                  {headingText}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {screenshot.subheading}
+                  {subheadingText}
                 </p>
               </div>
             </div>

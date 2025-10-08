@@ -33,9 +33,6 @@ router.post('/regenerate-content-part', requireAuth, contentController.regenerat
 // Legacy regenerate with AI endpoint  
 router.post('/regenerate-with-ai-legacy', requireAuth, contentController.regenerateWithAILegacy);
 
-// Download generated images as ZIP
-router.post('/download-images-zip', imageController.downloadImagesZip);
-
 // Get available fonts
 router.get('/fonts', (req, res) => {
   // Define the font mapping to match exactly with CSS @font-face declarations

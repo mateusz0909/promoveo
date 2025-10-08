@@ -28,6 +28,8 @@ export interface GeneratedImageConfiguration {
   subheadingLetterSpacing?: number | null;
   headingLineHeight?: number | null;
   subheadingLineHeight?: number | null;
+  headingWidth?: number | null;
+  subheadingWidth?: number | null;
   mockupX?: number | null;
   mockupY?: number | null;
   mockupScale?: number | null;
@@ -69,7 +71,7 @@ export interface GeneratedImageConfiguration {
   // New instance-based fields
   textInstances?: Array<{
     id: string;
-    type: 'heading' | 'subheading';
+    type: 'heading' | 'subheading' | 'text';
     text: string;
     position: { x: number; y: number };
     fontSize: number;
@@ -78,6 +80,11 @@ export interface GeneratedImageConfiguration {
     letterSpacing: number;
     lineHeight: number;
     fontFamily: string;
+    fontWeight?: number;
+    isBold?: boolean;
+    width?: number;
+    rotation?: number;
+    zIndex?: number;
   }> | null;
   mockupInstances?: Array<{
     id: string;
@@ -92,7 +99,6 @@ export interface GeneratedImageConfiguration {
 export interface GeneratedImage {
   id?: string;
   sourceScreenshotUrl?: string | null;
-  generatedImageUrl?: string | null;
   accentColor?: string | null;
   description?: string | null;
   configuration?: GeneratedImageConfiguration | null;

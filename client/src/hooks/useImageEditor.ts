@@ -47,8 +47,19 @@ function wrapText(context: CanvasRenderingContext2D, text: string, x: number, y:
   };
 }
 
+interface DeviceConfig {
+  frameWidth: number;
+  frameHeight: number;
+  screenWidth: number;
+  screenHeight: number;
+  screenX: number;
+  screenY: number;
+  cornerRadius: number;
+  framePath: string;
+}
+
 async function generateMockupImage(screenshotUrl: string, device: string = 'iPhone'): Promise<HTMLCanvasElement> {
-  const deviceConfigs: Record<string, any> = {
+  const deviceConfigs: Record<string, DeviceConfig> = {
     iPhone: {
         frameWidth: 1293,
         frameHeight: 2656,

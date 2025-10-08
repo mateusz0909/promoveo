@@ -1,11 +1,25 @@
 const geminiService = require('../services/geminiService');
 const imageGenerationService = require('../services/imageGenerationService');
+const { createInitialImageConfig } = require('../services/imageConfigurationService');
 const { uploadImageToSupabase } = require('../services/storageService');
 const { prisma } = require('../lib/clients');
 const { GoogleGenAI, Type } = require('@google/genai');
 const path = require('path');
 const fs = require('fs');
 const tmpService = require('../services/tmpService');
+
+const sanitizeJson = (value) => {
+  if (value === undefined) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch (error) {
+    console.warn('sanitizeJson: unable to serialize value, substituting null.', error);
+    return null;
+  }
+};
 
 const contentController = {
   // Legacy generate content endpoint
@@ -151,16 +165,15 @@ const contentController = {
       }
 
       // Process and Upload Images
-      console.log('generate-and-save: Processing and uploading images');
+      console.log('generate-and-save: Processing screenshots and building configurations');
       const processedImages = [];
       for (let i = 0; i < uploadedFiles.length; i++) {
         const file = uploadedFiles[i];
         const heading = generatedAsoText.headings[i].heading;
         const subheading = generatedAsoText.headings[i].subheading;
-        const font = parsedImageDescriptions[i].font;
+        const font = parsedImageDescriptions[i]?.font || {};
 
         console.log(`generate-and-save: Uploading original screenshot ${i + 1}`);
-        // Upload the ORIGINAL screenshot to Supabase Storage
         const sourceScreenshotUrl = await uploadImageToSupabase(
           file.buffer,
           file.originalname,
@@ -168,43 +181,25 @@ const contentController = {
           userId
         );
 
-        console.log(`generate-and-save: Generating marketing image ${i + 1}`);
-        // Generate the App Store marketing image
-        const generatedImageResult = await imageGenerationService.generateAppStoreImage(
+        console.log(`generate-and-save: Creating initial configuration for screenshot ${i + 1}`);
+        const { configuration, accentColor } = await createInitialImageConfig({
+          screenshotBuffer: file.buffer,
           heading,
           subheading,
-          file.buffer,
-          font.headingFont || 'Farro',
-          font.subheadingFont || 'Headland One',
-          font.headingFontSize || 120,
-          font.subheadingFontSize || 69,
-          device
-        );
-
-        console.log(`generate-and-save: Uploading generated image ${i + 1} - buffer size: ${generatedImageResult.imageBuffer.length} bytes`);
-        // Upload the generated marketing image to Supabase Storage
-        const generatedImageUrl = await uploadImageToSupabase(
-          generatedImageResult.imageBuffer,
-          `generated_${file.originalname}`,
-          'image/jpeg',
-          userId
-        );
+          font,
+          device,
+          sourceScreenshotUrl,
+        });
 
         processedImages.push({
           sourceScreenshotUrl,
-          generatedImageUrl,
-          accentColor: generatedImageResult.accentColor,
-          configuration: {
-            heading,
-            subheading,
-            font,
-          }
+          accentColor: accentColor || null,
+          configuration: sanitizeJson(configuration),
         });
-        
-        console.log(`Generated image ${i + 1} URLs:`, {
+
+        console.log(`generate-and-save: Configuration ready for screenshot ${i + 1}`, {
           sourceScreenshotUrl,
-          generatedImageUrl,
-          accentColor: generatedImageResult.accentColor
+          accentColor,
         });
       }
 
@@ -212,7 +207,6 @@ const contentController = {
       console.log('ProcessedImages summary:', processedImages.map((img, i) => ({
         index: i + 1,
         sourceScreenshotUrl: img.sourceScreenshotUrl,
-        generatedImageUrl: img.generatedImageUrl,
         accentColor: img.accentColor
       })));
       
@@ -224,16 +218,16 @@ const contentController = {
           name: appName, // Use appName for consistency across all displays
           inputAppName: appName,
           inputAppDescription: appDescription,
-          generatedAsoText,
+          generatedAsoText: sanitizeJson(generatedAsoText),
           device,
           language,
           generatedImages: {
-            create: processedImages.map(img => ({
+            create: processedImages.map((img, index) => ({
               sourceScreenshotUrl: img.sourceScreenshotUrl,
-              generatedImageUrl: img.generatedImageUrl,
               accentColor: img.accentColor,
               configuration: img.configuration,
-            }))
+              displayOrder: index,
+            })),
           }
         },
         include: {

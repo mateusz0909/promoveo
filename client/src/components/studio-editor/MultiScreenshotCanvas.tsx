@@ -9,13 +9,13 @@
  * - Clean integration with unified element model
  */
 
-import { useRef, useEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { MarketingImageCanvas } from './canvas/MarketingImageCanvas';
 import { CanvasTextEditor } from './CanvasTextEditor';
 import { TransformControlsWrapper } from './canvas/TransformControlsWrapper';
 import { VisualTransformControlsWrapper } from './canvas/VisualTransformControlsWrapper';
 import { TextTransformControlsWrapper } from './canvas/TextTransformControlsWrapper';
-import { CANVAS_WIDTH, CANVAS_HEIGHT } from './canvas/utils';
+import { getCanvasMetrics } from './canvas/utils';
 import { useStudioEditor } from '@/context/StudioEditorContext';
 import { isTextElement, isMockupElement, isVisualElement } from '@/context/studio-editor/elementTypes';
 
@@ -38,24 +38,33 @@ export function MultiScreenshotCanvas() {
     setZoom,
   } = useStudioEditor();
 
+  const metrics = useMemo(() => getCanvasMetrics(global.deviceFrame), [global.deviceFrame]);
+  const canvasWidth = metrics.width;
+  const canvasHeight = metrics.height;
+  const devicePreset = metrics.preset;
+
   // Load device frame
   const [deviceFrameImage, setDeviceFrameImage] = useState<HTMLImageElement | null>(null);
 
   useEffect(() => {
+    if (!global.showDeviceFrame) {
+      setDeviceFrameImage(null);
+      return;
+    }
+
     const frameImg = new Image();
     frameImg.onload = () => setDeviceFrameImage(frameImg);
-    frameImg.onerror = () => console.error('Failed to load device frame');
-    
-    const frameFiles: Record<string, string> = {
-      'iPhone 15 Pro': '/iphone_15_frame.png',
-      'iPhone 15': '/iphone_15_frame.png',
-      'iPhone 14 Pro': '/iphone_15_frame.png',
-      'iPad Pro 13': '/iPad Pro 13 Frame.png',
-      'iPad Pro 11': '/iPad Pro 13 Frame.png',
+    frameImg.onerror = () => {
+      console.error('Failed to load device frame');
+      setDeviceFrameImage(null);
     };
-    
-    frameImg.src = frameFiles[global.deviceFrame] || '/iphone_15_frame.png';
-  }, [global.deviceFrame]);
+    frameImg.src = devicePreset.frameAsset;
+
+    return () => {
+      frameImg.onload = null;
+      frameImg.onerror = null;
+    };
+  }, [devicePreset.frameAsset, global.showDeviceFrame]);
 
   // Listen for double-click editing event
   useEffect(() => {
@@ -92,14 +101,15 @@ export function MultiScreenshotCanvas() {
 
   // Handle selection
   const handleSelect = useCallback((
-    index: number | null, 
+    index: number | null,
     elementId: string | null
   ) => {
-    if (index === null || elementId === null) {
+    if (index === null) {
       clearSelection();
-    } else {
-      selectElement(index, elementId);
+      return;
     }
+
+    selectElement(index, elementId);
   }, [selectElement, clearSelection]);
 
   // Handle position updates from drag
@@ -121,11 +131,11 @@ export function MultiScreenshotCanvas() {
   return (
     <div 
       ref={containerRef}
-      className="w-full h-full overflow-auto bg-muted/30 relative"
+      className="relative h-full w-full min-w-0 overflow-auto bg-muted/30"
       onClick={handleBackgroundClick}
     >
       <div 
-        className="flex gap-6 items-start p-6 min-w-min"
+        className="flex gap-2 items-start p-6 min-w-min"
         style={{ 
           transform: `scale(${view.zoom})`,
           transformOrigin: 'top left',
@@ -135,6 +145,8 @@ export function MultiScreenshotCanvas() {
         {screenshots.map((screenshot, index) => {
           const isSelected = selection.screenshotIndex === index;
           const selectedElementId = isSelected ? selection.elementId : null;
+          const selectedElementIds = isSelected ? selection.selectedElementIds : [];
+          const isCanvasSelected = isSelected && !selectedElementId;
           const isThisScreenshotEditing = selection.isEditing && isSelected;
           
           // Get the selected element data
@@ -155,10 +167,11 @@ export function MultiScreenshotCanvas() {
             }
           };
           
+
           return (
             <div 
               key={screenshot.id} 
-              className="relative inline-block" 
+              className="relative inline-block"
               onClick={handleWrapperClick}
             >
               <MarketingImageCanvas
@@ -166,31 +179,45 @@ export function MultiScreenshotCanvas() {
                 index={index}
                 totalImages={screenshots.length}
                 isSelected={isSelected}
-                selectedElement={selectedElementId}
+                selectedElementIds={selectedElementIds}
+                primarySelectedElementId={selectedElementId}
                 isEditing={isThisScreenshotEditing}
                 onSelect={handleSelect}
                 onUpdatePosition={handleUpdatePosition}
-                deviceFrameImage={deviceFrameImage}
+                deviceFrameImage={global.showDeviceFrame ? deviceFrameImage : null}
                 global={global}
+                isCanvasSelected={isCanvasSelected}
               />
               
               {/* Transform controls for mockup elements */}
               {selectedElement && isMockupElement(selectedElement) && !selection.isEditing && (
-                <TransformControlsWrapper
-                  screenshot={screenshot}
-                  index={index}
-                  elementId={selectedElement.id}
-                  mockupX={(CANVAS_WIDTH - 700 * selectedElement.scale) / 2 + selectedElement.position.x}
-                  mockupY={(CANVAS_HEIGHT - 1400 * selectedElement.scale) / 2 + selectedElement.position.y}
-                  mockupWidth={700 * selectedElement.scale}
-                  mockupHeight={1400 * selectedElement.scale}
-                  canvasWidth={CANVAS_WIDTH}
-                  canvasHeight={CANVAS_HEIGHT}
-                  zoom={view.zoom}
-                  updateScreenshotPosition={(idx, elemId, pos) => updateElementPosition(idx, elemId as string, pos)}
-                  updateScreenshotScale={(idx, scale, elemId) => updateElementScale(idx, elemId || selectedElement.id, scale)}
-                  updateScreenshotRotation={(idx, rotation, elemId) => updateElementRotation(idx, elemId || selectedElement.id, rotation)}
-                />
+                (() => {
+                  const baseWidth = selectedElement.baseWidth;
+                  const baseHeight = selectedElement.baseHeight;
+                  const scaledWidth = baseWidth * selectedElement.scale;
+                  const scaledHeight = baseHeight * selectedElement.scale;
+                  const mockupCenterX = (canvasWidth - scaledWidth) / 2 + selectedElement.position.x;
+                  const mockupCenterY = (canvasHeight - scaledHeight) / 2 + selectedElement.position.y;
+
+                  return (
+                    <TransformControlsWrapper
+                      index={index}
+                      elementId={selectedElement.id}
+                      mockupX={mockupCenterX}
+                      mockupY={mockupCenterY}
+                      mockupWidth={scaledWidth}
+                      mockupHeight={scaledHeight}
+                      baseWidth={baseWidth}
+                      canvasWidth={canvasWidth}
+                      canvasHeight={canvasHeight}
+                      zoom={view.zoom}
+                      rotation={selectedElement.rotation || 0}
+                      updateScreenshotPosition={(idx, elemId, pos) => updateElementPosition(idx, elemId as string, pos)}
+                      updateScreenshotScale={(idx, scale, elemId) => updateElementScale(idx, elemId || selectedElement.id, scale)}
+                      updateScreenshotRotation={(idx, rotation, elemId) => updateElementRotation(idx, elemId || selectedElement.id, rotation)}
+                    />
+                  );
+                })()
               )}
               
               {/* Transform controls for text elements (when not editing) */}
@@ -199,8 +226,9 @@ export function MultiScreenshotCanvas() {
                   screenshot={screenshot}
                   index={index}
                   element={selectedElement}
-                  canvasWidth={CANVAS_WIDTH}
-                  canvasHeight={CANVAS_HEIGHT}
+                  canvasWidth={canvasWidth}
+                  fontScaleMultiplier={metrics.fontScaleMultiplier}
+                  defaultTextWidth={metrics.defaultTextWidth}
                   zoom={view.zoom}
                   updateTextWidth={updateTextWidth}
                   updateTextPosition={(idx, elemId, pos) => updateElementPosition(idx, elemId, pos)}
@@ -218,7 +246,6 @@ export function MultiScreenshotCanvas() {
                   
                   return (
                     <VisualTransformControlsWrapper
-                      screenshot={screenshot}
                       index={index}
                       visualId={selectedElement.id.replace('visual-', '')}
                       centerX={selectedElement.position.x}
@@ -229,8 +256,8 @@ export function MultiScreenshotCanvas() {
                       scale={selectedElement.scale}
                       baseWidth={baseWidth}
                       baseHeight={baseHeight}
-                      canvasWidth={CANVAS_WIDTH}
-                      canvasHeight={CANVAS_HEIGHT}
+                      canvasWidth={canvasWidth}
+                      canvasHeight={canvasHeight}
                       zoom={view.zoom}
                       updateVisualPosition={(idx, visualId, pos) => 
                         updateElementPosition(idx, `visual-${visualId}`, pos)
@@ -254,13 +281,14 @@ export function MultiScreenshotCanvas() {
                 (() => {
                   // Extract 'heading' or 'subheading' from element ID
                   // IDs are like: "text-1234567890-abc" (general text) or legacy "heading-1234" / "subheading-1234"
+                  const inferredWeight = selectedElement.fontWeight ?? (selectedElement.isBold ? 700 : 400);
                   const elementType = selectedElement.id.startsWith('heading-') 
                     ? 'heading' 
                     : selectedElement.id.startsWith('subheading-')
                     ? 'subheading'
-                    : selectedElement.isBold 
-                    ? 'heading'  // Default for bold text
-                    : 'subheading'; // Default for regular text
+                    : inferredWeight >= 600 
+                    ? 'heading'
+                    : 'subheading';
                     
                   return (
                     <CanvasTextEditor
@@ -271,6 +299,7 @@ export function MultiScreenshotCanvas() {
                   );
                 })()
               )}
+
             </div>
           );
         })}

@@ -48,7 +48,6 @@ model GeneratedImage {
   id                  String   @id @default(cuid())
   createdAt           DateTime @default(now())
   sourceScreenshotUrl String
-  generatedImageUrl   String
   accentColor         String?  // To store the background accent color
   configuration       Json?    // Stores { "heading": "...", "font": "..." }
   displayOrder        Int      @default(0) // Order in which to display screenshots

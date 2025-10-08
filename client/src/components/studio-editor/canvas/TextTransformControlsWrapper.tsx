@@ -5,15 +5,18 @@
 
 import { useRef, useEffect, useState } from 'react';
 import { TransformControls } from '../TransformControls';
-import { CANVAS_WIDTH, FONT_SCALE_MULTIPLIER, wrapText } from './utils';
+import { wrapText } from './utils';
+import { quoteFontFamily } from '@/lib/fonts';
 import type { TextElement } from '@/context/studio-editor/elementTypes';
+import type { ScreenshotState } from '@/context/studio-editor/types';
 
 interface TextTransformControlsWrapperProps {
-  screenshot: any;
+  screenshot: ScreenshotState;
   index: number;
   element: TextElement;
   canvasWidth: number;
-  canvasHeight: number;
+  fontScaleMultiplier: number;
+  defaultTextWidth: number;
   zoom: number;
   updateTextWidth: (index: number, elementId: string, width: number) => void;
   updateTextPosition: (index: number, elementId: string, position: { x: number; y: number }) => void;
@@ -24,6 +27,8 @@ export function TextTransformControlsWrapper({
   index,
   element,
   canvasWidth,
+  fontScaleMultiplier,
+  defaultTextWidth,
   zoom,
   updateTextWidth,
   updateTextPosition,
@@ -61,16 +66,16 @@ export function TextTransformControlsWrapper({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const fontSize = element.fontSize * FONT_SCALE_MULTIPLIER;
-    const fontWeight = element.isBold ? 'bold' : 'normal';
-    ctx.font = `${fontWeight} ${fontSize}px ${element.fontFamily}`;
+  const fontSize = element.fontSize * fontScaleMultiplier;
+    const weightValue = element.fontWeight ?? (element.isBold ? 700 : 400);
+    const fontWeight = typeof weightValue === 'number' ? weightValue.toString() : weightValue;
+    const fontFamily = quoteFontFamily(element.fontFamily);
+    ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
 
     // Use element width if specified, otherwise use 90% of canvas
-    const maxTextWidth = element.width 
-      ? element.width * FONT_SCALE_MULTIPLIER 
-      : CANVAS_WIDTH * 0.9;
+    const maxTextWidth = element.width ?? defaultTextWidth;
     
-    const lines = wrapText(ctx, element.text, maxTextWidth);
+    const lines = wrapText(ctx, element.text, maxTextWidth, element.letterSpacing ?? 0);
     const lineHeight = fontSize * element.lineHeight;
     const totalHeight = lines.length * lineHeight;
 
@@ -78,20 +83,24 @@ export function TextTransformControlsWrapper({
     let actualWidth = 0;
     lines.forEach(line => {
       const metrics = ctx.measureText(line);
-      actualWidth = Math.max(actualWidth, metrics.width);
+      const charCount = Math.max(Array.from(line).length - 1, 0);
+      const spacingTotal = (element.letterSpacing ?? 0) * charCount;
+      const lineWidth = Math.max(metrics.width + spacingTotal, 0);
+      actualWidth = Math.max(actualWidth, lineWidth);
     });
 
     // Calculate bounds based on alignment
     let minX: number;
     const textX = element.position.x;
     const textY = element.position.y;
+    const frameWidth = element.width ?? maxTextWidth;
 
     if (element.align === 'left') {
       minX = textX;
     } else if (element.align === 'right') {
-      minX = textX - actualWidth;
+      minX = textX - frameWidth;
     } else {
-      minX = textX - actualWidth / 2;
+      minX = textX - frameWidth / 2;
     }
 
     // Text position is baseline, so adjust for font height
@@ -100,10 +109,10 @@ export function TextTransformControlsWrapper({
     setTextBounds({
       x: minX,
       y: topY,
-      width: actualWidth,
+      width: frameWidth,
       height: totalHeight,
     });
-  }, [element]);
+  }, [element, defaultTextWidth, fontScaleMultiplier]);
 
   return (
     <div ref={wrapperRef} className="absolute inset-0 pointer-events-none">
@@ -126,7 +135,7 @@ export function TextTransformControlsWrapper({
           }
 
           // Adjust Y back to baseline from top
-          const fontSize = element.fontSize * FONT_SCALE_MULTIPLIER;
+          const fontSize = element.fontSize * fontScaleMultiplier;
           const newY = transform.y + fontSize * 0.8;
 
           // Update position
@@ -136,7 +145,7 @@ export function TextTransformControlsWrapper({
           });
 
           // Update width (convert from canvas pixels to logical pixels)
-          const newWidth = transform.width / FONT_SCALE_MULTIPLIER;
+          const newWidth = transform.width;
           updateTextWidth(index, element.id, newWidth);
 
           // Update rotation
@@ -144,6 +153,7 @@ export function TextTransformControlsWrapper({
         }}
         showRotationHandle={true}
         hideTopBottomHandles={true}
+        showBoundingBox={true}
       />
     </div>
   );

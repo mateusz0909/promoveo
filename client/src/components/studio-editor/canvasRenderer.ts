@@ -1,602 +1,293 @@
 /**
- * Standalone canvas renderer for generating marketing images
- * This can be used both in the editor and for downloads
+ * Standalone canvas renderer for generating marketing images.
+ * Reuses the Studio editor element pipeline so downloads match the live preview.
  */
 
-const CANVAS_WIDTH = 1200;
-const CANVAS_HEIGHT = 2600;
-const FONT_SCALE_MULTIPLIER = 3.4;
+import { getCanvasMetrics } from './canvas/utils';
+import {
+  drawBackground,
+  loadBackgroundImage,
+  type BackgroundConfig,
+} from './canvas/backgroundRenderer';
+import { renderAllElements } from './canvas/elementRenderer';
+import type { CanvasElement } from '@/context/studio-editor/elementTypes';
+import { isMockupElement, isTextElement } from '@/context/studio-editor/elementTypes';
+import {
+  generatedImageToLegacyData,
+  migrateLegacyScreenshot,
+} from '@/context/studio-editor/migration';
+import type { GeneratedImage, GeneratedImageConfiguration } from '@/types/project';
+import { ensureFontLoaded } from '@/lib/fonts';
 
 interface RenderConfig {
   sourceScreenshotUrl: string;
-  configuration: {
-    heading?: string;
-    subheading?: string;
-    fontFamily?: string;
-    headingFont?: string;
-    headingFontSize?: number;
-    subheadingFontSize?: number;
-    headingColor?: string;
-    subheadingColor?: string;
-    headingAlign?: 'left' | 'center' | 'right';
-    subheadingAlign?: 'left' | 'center' | 'right';
-    headingLetterSpacing?: number;
-    subheadingLetterSpacing?: number;
-    headingLineHeight?: number;
-    subheadingLineHeight?: number;
-    mockupScale?: number;
-    mockupRotation?: number;
-    mockupX?: number;
-    mockupY?: number;
-    headingX?: number;
-    headingY?: number;
-    subheadingX?: number;
-    subheadingY?: number;
-    backgroundType?: string;
-    backgroundGradient?: {
-      startColor: string;
-      endColor: string;
-      angle?: number;
-    };
-    backgroundColor?: string; // Legacy support
-    backgroundSolid?: string; // Current naming
-    deviceFrame?: string;
-    headingPosition?: { x: number; y: number };
-    subheadingPosition?: { x: number; y: number };
-    mockupPosition?: { x: number; y: number };
-    // Instance arrays (new architecture)
-    textInstances?: Array<{
-      id: string;
-      type: 'heading' | 'subheading';
-      text: string;
-      position: { x: number; y: number };
-      fontSize: number;
-      color: string;
-      align: 'left' | 'center' | 'right';
-      letterSpacing: number;
-      lineHeight: number;
-      fontFamily: string;
-    }>;
-    mockupInstances?: Array<{
-      id: string;
-      type: string;
-      sourceScreenshotUrl: string;
-      position: { x: number; y: number };
-      scale: number;
-      rotation: number;
-    }>;
-    visuals?: Array<{
-      id: string;
-      visualId: string;
-      imageUrl: string;
-      name: string;
-      width: number;
-      height: number;
-      position: { x: number; y: number };
-      scale: number;
-      rotation: number;
-      zIndex: number;
-    }>;
-  };
+  configuration: Record<string, unknown> | null | undefined;
   device?: string;
-  index?: number; // Index of this screenshot
-  totalImages?: number; // Total number of screenshots
+  index?: number;
+  totalImages?: number;
 }
 
-/**
- * Helper function to interpolate between two colors
- */
-function interpolateGradient(color1: string, color2: string, factor: number): string {
-  factor = Math.max(0, Math.min(1, factor));
-  
-  const c1 = parseInt(color1.slice(1), 16);
-  const c2 = parseInt(color2.slice(1), 16);
-  
-  const r1 = (c1 >> 16) & 255;
-  const g1 = (c1 >> 8) & 255;
-  const b1 = c1 & 255;
-  
-  const r2 = (c2 >> 16) & 255;
-  const g2 = (c2 >> 8) & 255;
-  const b2 = c2 & 255;
-  
-  const r = Math.round(r1 + factor * (r2 - r1));
-  const g = Math.round(g1 + factor * (g2 - g1));
-  const b = Math.round(b1 + factor * (b2 - b1));
-  
-  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
-}
+const DEFAULT_BACKGROUND_SOLID = '#f6d365';
+const DEFAULT_BACKGROUND_GRADIENT_START = '#f6d365';
+const DEFAULT_BACKGROUND_GRADIENT_END = '#fda085';
+const DEFAULT_FONT_FAMILY = 'Poppins';
 
-/**
- * Wraps text to fit within a maximum width
- */
-function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
-  // First split by manual line breaks
-  const paragraphs = text.split('\n');
-  const lines: string[] = [];
-  
-  // Process each paragraph
-  for (const paragraph of paragraphs) {
-    if (paragraph === '') {
-      // Preserve empty lines
-      lines.push('');
-      continue;
-    }
-    
-    const words = paragraph.split(' ');
-    let currentLine = '';
+const fontLoadPromises = new Map<string, Promise<void>>();
+const sharedImageCache = new Map<string, HTMLImageElement>();
+const imageLoadPromises = new Map<string, Promise<HTMLImageElement>>();
+const visualImageCache = new Map<string, HTMLImageElement>();
 
-    for (const word of words) {
-      const testLine = currentLine ? `${currentLine} ${word}` : word;
-      const metrics = ctx.measureText(testLine);
-      
-      if (metrics.width > maxWidth && currentLine) {
-        lines.push(currentLine);
-        currentLine = word;
-      } else {
-        currentLine = testLine;
-      }
+const isFiniteNumber = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value);
+
+const normalizeFontWeight = (value: unknown, isBold: boolean | undefined): number => {
+  if (isFiniteNumber(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim().toLowerCase();
+    if (/^\d+$/.test(trimmed)) {
+      return Number(trimmed);
     }
-    
-    if (currentLine) {
-      lines.push(currentLine);
+    if (trimmed === 'bold') {
+      return 700;
+    }
+    if (trimmed === 'semibold' || trimmed === 'semi-bold') {
+      return 600;
+    }
+    if (trimmed === 'medium') {
+      return 500;
+    }
+    if (trimmed === 'light') {
+      return 300;
     }
   }
-  
-  return lines;
-}
 
-/**
- * Loads an image from a URL
- */
-function loadImage(url: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
+  return isBold ? 700 : 400;
+};
+
+const queueFontLoad = (family: string, weight: number): Promise<void> => {
+  const key = `${family}::${weight}`;
+  const existing = fontLoadPromises.get(key);
+  if (existing) {
+    return existing;
+  }
+
+  const loadPromise = ensureFontLoaded(family, { weight }).catch((error) => {
+    fontLoadPromises.delete(key);
+    throw error;
+  });
+
+  fontLoadPromises.set(key, loadPromise);
+  return loadPromise;
+};
+
+const loadImage = (url: string): Promise<HTMLImageElement> => {
+  const cached = sharedImageCache.get(url);
+  if (cached) {
+    return Promise.resolve(cached);
+  }
+
+  const pending = imageLoadPromises.get(url);
+  if (pending) {
+    return pending;
+  }
+
+  const promise = new Promise<HTMLImageElement>((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = reject;
+    img.onload = () => {
+      sharedImageCache.set(url, img);
+      imageLoadPromises.delete(url);
+      resolve(img);
+    };
+    img.onerror = (error) => {
+      imageLoadPromises.delete(url);
+      reject(error);
+    };
     img.src = url;
   });
-}
 
-/**
- * Renders a screenshot to a canvas using the stored configuration
- */
+  imageLoadPromises.set(url, promise);
+  return promise;
+};
+
+const resolveDeviceFrame = (
+  configuration: GeneratedImageConfiguration | null | undefined,
+  fallbackDevice?: string
+): string => {
+  if (configuration?.deviceFrame && configuration.deviceFrame.trim()) {
+    return configuration.deviceFrame;
+  }
+  if (fallbackDevice) {
+    return fallbackDevice;
+  }
+  return 'iPhone 15 Pro';
+};
+
+const normalizeBackgroundConfig = (
+  configuration: GeneratedImageConfiguration | null | undefined
+): BackgroundConfig => {
+  const typeCandidate = configuration?.backgroundType
+    ? configuration.backgroundType.toLowerCase()
+    : undefined;
+
+  let backgroundType: 'solid' | 'gradient' | 'image';
+  switch (typeCandidate) {
+    case 'solid':
+      backgroundType = 'solid';
+      break;
+    case 'image':
+      backgroundType = 'image';
+      break;
+    case 'gradient':
+    case 'accent':
+    case 'default':
+    default:
+      backgroundType = 'gradient';
+      break;
+  }
+
+  const gradient = configuration?.backgroundGradient ?? undefined;
+  const backgroundSolid =
+    configuration?.backgroundSolid || configuration?.backgroundColor || DEFAULT_BACKGROUND_SOLID;
+
+  return {
+    backgroundType,
+    backgroundSolid,
+    backgroundGradient: {
+      startColor: gradient?.startColor || DEFAULT_BACKGROUND_GRADIENT_START,
+      endColor: gradient?.endColor || DEFAULT_BACKGROUND_GRADIENT_END,
+      angle: isFiniteNumber(gradient?.angle) ? (gradient?.angle as number) : 270,
+    },
+    backgroundImage: {
+      url: configuration?.backgroundImage?.url || '',
+      fit:
+        configuration?.backgroundImage?.fit &&
+        ['cover', 'contain', 'fill', 'tile'].includes(configuration.backgroundImage.fit)
+          ? (configuration.backgroundImage.fit as 'cover' | 'contain' | 'fill' | 'tile')
+          : 'cover',
+      opacity: isFiniteNumber(configuration?.backgroundImage?.opacity)
+        ? (configuration?.backgroundImage?.opacity as number)
+        : 1,
+    },
+  };
+};
+
+const collectFontRequests = (
+  elements: CanvasElement[]
+): Array<{ family: string; weight: number }> => {
+  const requests = new Map<string, { family: string; weight: number }>();
+
+  elements.forEach((element) => {
+    if (!isTextElement(element)) {
+      return;
+    }
+
+    const family = element.fontFamily?.trim() || DEFAULT_FONT_FAMILY;
+    const weight = normalizeFontWeight(element.fontWeight, element.isBold);
+
+    const key = `${family}-${weight}`;
+    if (!requests.has(key)) {
+      requests.set(key, { family, weight });
+    }
+  });
+
+  return Array.from(requests.values());
+};
+
+const loadDeviceFrameImage = async (
+  frameAsset: string | null | undefined,
+  hasMockup: boolean
+): Promise<HTMLImageElement | null> => {
+  if (!hasMockup) {
+    return null;
+  }
+  if (!frameAsset) {
+    return null;
+  }
+  try {
+    return await loadImage(frameAsset);
+  } catch (error) {
+    console.warn('Failed to load device frame image for download', error);
+    return null;
+  }
+};
+
+const loadScreenshotImage = async (
+  url: string | null | undefined
+): Promise<HTMLImageElement | null> => {
+  if (!url) {
+    return null;
+  }
+  try {
+    return await loadImage(url);
+  } catch (error) {
+    console.warn('Failed to load screenshot image for download', error);
+    return null;
+  }
+};
+
 export async function renderScreenshotToCanvas(
   canvas: HTMLCanvasElement,
   config: RenderConfig
 ): Promise<void> {
   const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Failed to get canvas context');
-
-  canvas.width = CANVAS_WIDTH;
-  canvas.height = CANVAS_HEIGHT;
-
-  const {
-    heading = '',
-    subheading = '',
-    fontFamily,
-    headingFont,
-    headingFontSize = 64,
-    subheadingFontSize = 32,
-    headingColor = '#ffffff',
-    subheadingColor = '#ffffff',
-    mockupScale = 1.0,
-    mockupRotation = 0,
-    // Support both formats: position objects or individual X/Y values
-    mockupPosition,
-    mockupX,
-    mockupY,
-    headingPosition,
-    headingX,
-    headingY,
-    subheadingPosition,
-    subheadingX,
-    subheadingY,
-    backgroundType = 'gradient',
-    backgroundGradient = {
-      startColor: '#667eea',
-      endColor: '#764ba2',
-      angle: 135
-    },
-    backgroundColor = '#667eea',
-    backgroundSolid,
-    deviceFrame = 'iPhone 15 Pro'
-  } = config.configuration;
-
-  // Use fontFamily as the primary font, fallback to headingFont for backward compatibility
-  const actualFontFamily = fontFamily || headingFont || 'Inter';
-
-  // Handle both position object format and individual X/Y format
-  const actualMockupPosition = mockupPosition || { x: mockupX || 0, y: mockupY || 0 };
-  const actualHeadingPosition = headingPosition || { x: headingX || 0, y: headingY || 0 };
-  const actualSubheadingPosition = subheadingPosition || { x: subheadingX || 0, y: subheadingY || 0 };
-
-  // Clear canvas
-  ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-
-  // Draw background with seamless horizontal flow across screenshots
-  if (backgroundType === 'gradient') {
-    const index = config.index ?? 0;
-    const totalImages = config.totalImages ?? 1;
-    const angle = backgroundGradient.angle ?? 90; // Use nullish coalescing to allow 0
-    
-    // Determine gradient direction and color flow
-    const isHorizontal = angle === 90 || angle === 270;
-    const shouldReverseHorizontal = angle === 270; // Right to Left
-    
-    // Calculate this screenshot's portion of the overall gradient
-    const imageWidthInGradient = 1 / totalImages;
-    let gradientStart = index * imageWidthInGradient;
-    let gradientEnd = (index + 1) * imageWidthInGradient;
-    
-    // Reverse the interpolation factors for Right to Left only
-    if (shouldReverseHorizontal) {
-      gradientStart = 1 - gradientStart;
-      gradientEnd = 1 - gradientEnd;
-      [gradientStart, gradientEnd] = [gradientEnd, gradientStart]; // Swap
-    }
-    
-    // Interpolate colors for this screenshot's slice
-    const startColor = interpolateGradient(
-      backgroundGradient.startColor,
-      backgroundGradient.endColor,
-      isHorizontal ? gradientStart : 0 // Vertical: use full gradient range
-    );
-    const endColor = interpolateGradient(
-      backgroundGradient.startColor,
-      backgroundGradient.endColor,
-      isHorizontal ? gradientEnd : 1 // Vertical: use full gradient range
-    );
-    
-    // Create gradient based on direction
-    let gradient;
-    if (angle === 90) {
-      // Left to Right
-      gradient = ctx.createLinearGradient(0, 0, CANVAS_WIDTH, 0);
-    } else if (angle === 270) {
-      // Right to Left
-      gradient = ctx.createLinearGradient(CANVAS_WIDTH, 0, 0, 0);
-    } else if (angle === 180) {
-      // Top to Bottom
-      gradient = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);
-    } else if (angle === 0) {
-      // Bottom to Top
-      gradient = ctx.createLinearGradient(0, CANVAS_HEIGHT, 0, 0);
-    } else {
-      // Default: Left to Right
-      gradient = ctx.createLinearGradient(0, 0, CANVAS_WIDTH, 0);
-    }
-    
-    gradient.addColorStop(0, startColor);
-    gradient.addColorStop(1, endColor);
-    ctx.fillStyle = gradient;
-  } else {
-    // Use backgroundSolid if available, fallback to backgroundColor for legacy support
-    ctx.fillStyle = backgroundSolid || backgroundColor;
+  if (!ctx) {
+    throw new Error('Failed to acquire 2D canvas context');
   }
-  ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-  // Calculate mockup dimensions and position
-  const mockupWidth = 700 * mockupScale;
-  const mockupHeight = 1400 * mockupScale;
-  const finalMockupX = (CANVAS_WIDTH - mockupWidth) / 2 + actualMockupPosition.x;
-  const finalMockupY = (CANVAS_HEIGHT - mockupHeight) / 2 + actualMockupPosition.y;
+  const configuration = (config.configuration ?? {}) as GeneratedImageConfiguration;
 
-  // Text positions
-  const maxTextWidth = CANVAS_WIDTH * 0.9;
-  
-  // Calculate X position based on alignment
-  // The alignment changes the anchor point, but position offset is always applied
-  const getTextX = (align: 'left' | 'center' | 'right' | undefined, positionOffset: number) => {
-    if (align === 'left') {
-      return 60 + positionOffset; // Left margin + offset
-    } else if (align === 'right') {
-      return CANVAS_WIDTH - 60 + positionOffset; // Right margin + offset
-    } else {
-      return CANVAS_WIDTH / 2 + positionOffset; // Center (default) + offset
-    }
+  const generatedImage: GeneratedImage = {
+    sourceScreenshotUrl: config.sourceScreenshotUrl,
+    configuration,
   };
-  
-  const finalHeadingX = getTextX(config.configuration.headingAlign, actualHeadingPosition.x);
-  const finalHeadingY = 150 + actualHeadingPosition.y;
-  const finalSubheadingX = getTextX(config.configuration.subheadingAlign, actualSubheadingPosition.x);
-  const finalSubheadingY = 400 + actualSubheadingPosition.y;
 
-  // Check if we should use instance-based rendering or legacy single elements
-  const textInstances = config.configuration.textInstances || [];
-  const mockupInstances = config.configuration.mockupInstances || [];
-  
-  const useInstanceMode = textInstances.length > 0 || mockupInstances.length > 0;
+  const legacyData = generatedImageToLegacyData(generatedImage, config.index ?? 0);
+  const screenshotState = migrateLegacyScreenshot(legacyData);
 
-  if (useInstanceMode) {
-    // ========== INSTANCE-BASED RENDERING ==========
-    console.log(`Rendering ${textInstances.length} text instances and ${mockupInstances.length} mockup instances`);
-    
-    // Draw text instances
-    textInstances.forEach((textInstance: any) => {
-      const text = textInstance.text;
-      if (!text || text === '') return;
-      
-      ctx.fillStyle = textInstance.color || '#ffffff';
-      const scaledFontSize = textInstance.fontSize * FONT_SCALE_MULTIPLIER;
-      const fontWeight = textInstance.type === 'heading' ? 'bold' : 'normal';
-      ctx.font = `${fontWeight} ${scaledFontSize}px ${textInstance.fontFamily || actualFontFamily}`;
-      ctx.textAlign = (textInstance.align || 'left') as CanvasTextAlign;
-      ctx.textBaseline = 'top';
-      
-      // Apply letter spacing
-      const letterSpacing = textInstance.letterSpacing || 0;
-      ctx.letterSpacing = `${letterSpacing * 0.01}em`;
-      
-      // Wrap and draw text
-      const lines = wrapText(ctx, text, maxTextWidth);
-      const lineHeight = scaledFontSize * (textInstance.lineHeight || 1.2);
-      
-      lines.forEach((line, lineIndex) => {
-        ctx.fillText(line, textInstance.position.x, textInstance.position.y + (lineIndex * lineHeight));
-      });
-      
-      // Reset letter spacing
-      ctx.letterSpacing = '0px';
-    });
-  } else {
-    // ========== LEGACY SINGLE-ELEMENT RENDERING ==========
-    // Draw heading text with wrapping
-    if (heading) {
-      ctx.fillStyle = headingColor;
-      const scaledHeadingSize = headingFontSize * FONT_SCALE_MULTIPLIER;
-      ctx.font = `bold ${scaledHeadingSize}px ${actualFontFamily}`;
-      ctx.textAlign = (config.configuration.headingAlign || 'left') as CanvasTextAlign;
-      ctx.textBaseline = 'top';
-      
-      // Apply letter spacing (convert percentage to em units)
-      const headingLetterSpacing = config.configuration.headingLetterSpacing || 0;
-      ctx.letterSpacing = `${headingLetterSpacing * 0.01}em`;
-      
-      const headingLines = wrapText(ctx, heading, maxTextWidth);
-      const headingLineHeight = scaledHeadingSize * (config.configuration.headingLineHeight || 1.2);
-      
-      headingLines.forEach((line, lineIndex) => {
-        ctx.fillText(line, finalHeadingX, finalHeadingY + (lineIndex * headingLineHeight));
-      });
-      
-      // Reset letter spacing
-      ctx.letterSpacing = '0px';
-    }
+  const deviceFrame = resolveDeviceFrame(screenshotState.image.configuration, config.device);
+  const backgroundConfig = normalizeBackgroundConfig(screenshotState.image.configuration);
+  const elements = screenshotState.elements;
 
-    // Draw subheading text with wrapping
-    if (subheading) {
-      ctx.fillStyle = subheadingColor;
-      const scaledSubheadingSize = subheadingFontSize * FONT_SCALE_MULTIPLIER;
-      ctx.font = `${scaledSubheadingSize}px ${actualFontFamily}`;
-      ctx.textAlign = (config.configuration.subheadingAlign || 'left') as CanvasTextAlign;
-      ctx.textBaseline = 'top';
-      
-      // Apply letter spacing (convert percentage to em units)
-      const subheadingLetterSpacing = config.configuration.subheadingLetterSpacing || 0;
-      ctx.letterSpacing = `${subheadingLetterSpacing * 0.01}em`;
-      
-      const subheadingLines = wrapText(ctx, subheading, maxTextWidth);
-      const subheadingLineHeight = scaledSubheadingSize * (config.configuration.subheadingLineHeight || 1.2);
-      
-      subheadingLines.forEach((line, lineIndex) => {
-        ctx.fillText(line, finalSubheadingX, finalSubheadingY + (lineIndex * subheadingLineHeight));
-      });
-      
-      // Reset letter spacing
-      ctx.letterSpacing = '0px';
-    }
-  }
+  const metrics = getCanvasMetrics(deviceFrame);
 
-  // ========== MOCKUP RENDERING ==========
-  if (useInstanceMode && mockupInstances.length > 0) {
-    // Instance-based: render all mockup instances
-    for (const mockupInstance of mockupInstances) {
-      const mockupWidth = 700 * mockupInstance.scale;
-      const mockupHeight = 1400 * mockupInstance.scale;
-      const finalMockupX = (CANVAS_WIDTH - mockupWidth) / 2 + mockupInstance.position.x;
-      const finalMockupY = (CANVAS_HEIGHT - mockupHeight) / 2 + mockupInstance.position.y;
-      
-      // Load and draw screenshot with rotation
-      try {
-        const screenshotImg = await loadImage(config.sourceScreenshotUrl);
-        
-        const radius = 40 * mockupInstance.scale;
-        const innerPadding = 20 * mockupInstance.scale;
-        
-        // Calculate center point for rotation
-        const centerX = finalMockupX + mockupWidth / 2;
-        const centerY = finalMockupY + mockupHeight / 2;
-        
-        ctx.save();
-        
-        // Apply rotation transformation
-        if (mockupInstance.rotation !== 0) {
-          ctx.translate(centerX, centerY);
-          ctx.rotate((mockupInstance.rotation * Math.PI) / 180);
-          ctx.translate(-centerX, -centerY);
-        }
-        
-        ctx.beginPath();
-        ctx.roundRect(
-          finalMockupX + innerPadding,
-          finalMockupY + innerPadding,
-          mockupWidth - innerPadding * 2,
-          mockupHeight - innerPadding * 2,
-          radius
-        );
-        ctx.clip();
-        
-        ctx.drawImage(
-          screenshotImg,
-          finalMockupX + innerPadding,
-          finalMockupY + innerPadding,
-          mockupWidth - innerPadding * 2,
-          mockupHeight - innerPadding * 2
-        );
-        
-        ctx.restore();
-      } catch (error) {
-        console.error('Failed to load screenshot for mockup instance:', error);
-      }
+  canvas.width = metrics.width;
+  canvas.height = metrics.height;
 
-      // Load and draw device frame with rotation
-      try {
-        const frameFiles: Record<string, string> = {
-          'iPhone 15 Pro': '/iphone_15_frame.png',
-          'iPhone 15': '/iphone_15_frame.png',
-          'iPhone 14 Pro': '/iphone_15_frame.png',
-          'iPad Pro 13': '/iPad Pro 13 Frame.png',
-          'iPad Pro 11': '/iPad Pro 13 Frame.png',
-        };
-        
-        const frameUrl = frameFiles[deviceFrame] || '/iphone_15_frame.png';
-        const frameImg = await loadImage(frameUrl);
-        
-        // Calculate center point for rotation
-        const centerX = finalMockupX + mockupWidth / 2;
-        const centerY = finalMockupY + mockupHeight / 2;
-        
-        ctx.save();
-        
-        // Apply rotation transformation
-        if (mockupInstance.rotation !== 0) {
-          ctx.translate(centerX, centerY);
-          ctx.rotate((mockupInstance.rotation * Math.PI) / 180);
-          ctx.translate(-centerX, -centerY);
-        }
-        
-        ctx.drawImage(frameImg, finalMockupX, finalMockupY, mockupWidth, mockupHeight);
-        ctx.restore();
-      } catch (error) {
-        console.error('Failed to load device frame for mockup instance:', error);
-      }
-    }
-  } else {
-    // Legacy single mockup rendering
-    // Load and draw screenshot with rotation
-    try {
-      const screenshotImg = await loadImage(config.sourceScreenshotUrl);
-      
-      const radius = 40 * mockupScale;
-      const innerPadding = 20 * mockupScale;
-      
-      // Calculate center point for rotation
-      const centerX = finalMockupX + mockupWidth / 2;
-      const centerY = finalMockupY + mockupHeight / 2;
-      
-      ctx.save();
-      
-      // Apply rotation transformation
-      if (mockupRotation !== 0) {
-        ctx.translate(centerX, centerY);
-        ctx.rotate((mockupRotation * Math.PI) / 180);
-        ctx.translate(-centerX, -centerY);
-      }
-      
-      ctx.beginPath();
-      ctx.roundRect(
-        finalMockupX + innerPadding,
-        finalMockupY + innerPadding,
-        mockupWidth - innerPadding * 2,
-        mockupHeight - innerPadding * 2,
-        radius
-      );
-      ctx.clip();
-      
-      ctx.drawImage(
-        screenshotImg,
-        finalMockupX + innerPadding,
-        finalMockupY + innerPadding,
-        mockupWidth - innerPadding * 2,
-        mockupHeight - innerPadding * 2
-      );
-      
-      ctx.restore();
-    } catch (error) {
-      console.error('Failed to load screenshot:', error);
-    }
+  const fontRequests = collectFontRequests(elements);
+  await Promise.all(
+    fontRequests.map(({ family, weight }) => queueFontLoad(family, weight))
+  );
 
-    // Load and draw device frame with rotation
-    try {
-      // Map device frame names to file paths (same as MultiScreenshotCanvas)
-      const frameFiles: Record<string, string> = {
-        'iPhone 15 Pro': '/iphone_15_frame.png',
-        'iPhone 15': '/iphone_15_frame.png',
-        'iPhone 14 Pro': '/iphone_15_frame.png',
-        'iPad Pro 13': '/iPad Pro 13 Frame.png',
-        'iPad Pro 11': '/iPad Pro 13 Frame.png',
-      };
-      
-      const frameUrl = frameFiles[deviceFrame] || '/iphone_15_frame.png';
-      const frameImg = await loadImage(frameUrl);
-      
-      // Calculate center point for rotation
-      const centerX = finalMockupX + mockupWidth / 2;
-      const centerY = finalMockupY + mockupHeight / 2;
-      
-      ctx.save();
-      
-      // Apply rotation transformation
-      if (mockupRotation !== 0) {
-        ctx.translate(centerX, centerY);
-        ctx.rotate((mockupRotation * Math.PI) / 180);
-        ctx.translate(-centerX, -centerY);
-      }
-    
-      
-      ctx.drawImage(frameImg, finalMockupX, finalMockupY, mockupWidth, mockupHeight);
-      ctx.restore();
-    } catch (error) {
-      console.error('Failed to load device frame, using fallback border:', error);
-      // Fallback: draw a simple frame
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
-      ctx.lineWidth = 8 * mockupScale;
-      ctx.beginPath();
-      ctx.roundRect(finalMockupX, finalMockupY, mockupWidth, mockupHeight, 40 * mockupScale);
-      ctx.stroke();
-    }
-  }
-  // ========== END MOCKUP RENDERING ==========  // Draw custom visuals from configuration
-  const visuals = config.configuration.visuals || [];
-  if (visuals.length > 0) {
-    // Sort by zIndex to render in correct order
-    const sortedVisuals = [...visuals].sort((a, b) => a.zIndex - b.zIndex);
-    
-    for (const visual of sortedVisuals) {
-      try {
-        const visualImg = await loadImage(visual.imageUrl);
-        
-        // Save context state
-        ctx.save();
+  const [backgroundImage, screenshotImage, deviceFrameImage] = await Promise.all([
+    backgroundConfig.backgroundType === 'image' && backgroundConfig.backgroundImage.url
+      ? loadBackgroundImage(backgroundConfig.backgroundImage.url).catch(() => null)
+      : Promise.resolve(null),
+    loadScreenshotImage(screenshotState.image.sourceScreenshotUrl || config.sourceScreenshotUrl),
+    loadDeviceFrameImage(metrics.preset.frameAsset, elements.some(isMockupElement)),
+  ]);
 
-        // Translate to visual position (center-based)
-        ctx.translate(visual.position.x, visual.position.y);
+  ctx.clearRect(0, 0, metrics.width, metrics.height);
 
-        // Apply rotation (convert degrees to radians)
-        if (visual.rotation) {
-          ctx.rotate((visual.rotation * Math.PI) / 180);
-        }
+  drawBackground(
+    ctx,
+    backgroundConfig,
+    metrics.width,
+    metrics.height,
+    config.index ?? 0,
+    config.totalImages ?? 1,
+    backgroundImage
+  );
 
-        // Calculate scaled dimensions using stored dimensions
-        const scaledWidth = visual.width * visual.scale;
-        const scaledHeight = visual.height * visual.scale;
-
-        // Draw centered on position
-        ctx.drawImage(
-          visualImg,
-          -scaledWidth / 2,
-          -scaledHeight / 2,
-          scaledWidth,
-          scaledHeight
-        );
-
-        // Restore context state
-        ctx.restore();
-      } catch (error) {
-        console.error('Failed to load visual:', visual.id, error);
-      }
-    }
-  }
+  await renderAllElements(
+    ctx,
+    elements,
+    screenshotImage,
+    deviceFrameImage,
+    metrics,
+    visualImageCache
+  );
 }

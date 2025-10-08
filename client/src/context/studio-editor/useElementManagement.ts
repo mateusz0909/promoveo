@@ -13,7 +13,8 @@ import { cloneElement } from './elementTypes';
 export function useElementManagement(
   screenshots: ScreenshotState[],
   setScreenshots: React.Dispatch<React.SetStateAction<ScreenshotState[]>>,
-  clearSelection: () => void
+  clearSelection: () => void,
+  markScreenshotDirty: (screenshotId: string) => void
 ) {
   
   /**
@@ -27,6 +28,8 @@ export function useElementManagement(
     }
 
     // Update state - auto-save will handle persistence
+    markScreenshotDirty(screenshot.id);
+
     setScreenshots(prev => prev.map((s, i) => 
       i === screenshotIndex
         ? { ...s, elements: [...s.elements, element] }
@@ -34,7 +37,7 @@ export function useElementManagement(
     ));
 
     toast.success('Element added');
-  }, [screenshots, setScreenshots]);
+  }, [screenshots, setScreenshots, markScreenshotDirty]);
 
   /**
    * Update an existing element
@@ -48,6 +51,8 @@ export function useElementManagement(
     if (!screenshot) return;
 
     // Optimistic update - preserve element type by casting
+    markScreenshotDirty(screenshot.id);
+
     setScreenshots(prev => prev.map((s, i) => 
       i === screenshotIndex
         ? {
@@ -60,7 +65,7 @@ export function useElementManagement(
     ));
 
     // Auto-save handled by debounced save in context
-  }, [screenshots, setScreenshots]);
+  }, [screenshots, setScreenshots, markScreenshotDirty]);
 
   /**
    * Delete an element
@@ -73,6 +78,8 @@ export function useElementManagement(
     }
 
     // Update state - auto-save will handle persistence
+    markScreenshotDirty(screenshot.id);
+    
     setScreenshots(prev => prev.map((s, i) => 
       i === screenshotIndex
         ? { ...s, elements: s.elements.filter(el => el.id !== elementId) }
@@ -81,7 +88,7 @@ export function useElementManagement(
 
     clearSelection();
     toast.success('Element deleted');
-  }, [screenshots, setScreenshots, clearSelection]);
+  }, [screenshots, setScreenshots, clearSelection, markScreenshotDirty]);
 
   /**
    * Duplicate an element

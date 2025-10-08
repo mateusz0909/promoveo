@@ -38,6 +38,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/utils';
 import logoWhite from '@/assets/logo_icon_white.png';
+import type { User } from '@supabase/supabase-js';
 
 interface Project {
   id: string;
@@ -50,7 +51,7 @@ interface Project {
 }
 
 interface AppSidebarProps {
-  onUserAvatarClick?: () => void; // now optional, not used
+  onUserAvatarClick?: () => void;
 }
 
 const studioSubItems = [
@@ -76,7 +77,7 @@ const studioSubItems = [
   },
 ];
 
-export function AppSidebar({ }: AppSidebarProps) {
+export function AppSidebar({ onUserAvatarClick }: AppSidebarProps) {
   const { user, session, signOut } = useAuth();
   const { currentProject } = useProject();
   const location = useLocation();
@@ -154,7 +155,7 @@ export function AppSidebar({ }: AppSidebarProps) {
   };
 
   // Get display name from user
-  const getDisplayName = (user: any): string => {
+  const getDisplayName = (user: User | null): string => {
     if (!user) return "Unknown User";
 
     const fullName = user.user_metadata?.full_name || user.user_metadata?.name;
@@ -358,7 +359,7 @@ export function AppSidebar({ }: AppSidebarProps) {
 
       <SidebarFooter className="p-4 border-t">
         {/* Settings Button */}
-        <Button variant="ghost" size="md" asChild className="justify-start mb-2">
+  <Button variant="ghost" size="lg" asChild className="justify-start mb-2">
           <Link to="/settings">
             <Cog6ToothIcon className="h-8 w-8 mr-2" />
             Settings
@@ -369,7 +370,11 @@ export function AppSidebar({ }: AppSidebarProps) {
         {user && (
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="justify-start p-2 h-auto w-full">
+              <Button
+                variant="ghost"
+                className="justify-start p-2 h-auto w-full"
+                onClick={onUserAvatarClick}
+              >
                 <div className="flex items-center space-x-3 w-full">
                   <UserAvatar user={user} size="sm" />
                   <div className="flex flex-col items-start text-left">

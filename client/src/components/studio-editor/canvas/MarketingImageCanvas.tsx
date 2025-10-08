@@ -1,80 +1,111 @@
 /**
  * Individual marketing image canvas component - Refactored with unified element system
- * 
- * This component renders a single marketing screenshot with:
- * - Background (gradient or solid color)
+ *
+ * Renders a single marketing screenshot with:
+ * - Background (gradient, solid, or image)
  * - All elements (text, mockups, visuals) in z-index order
- * - Selection indicators for selected elements
- * 
- * Uses the new unified rendering pipeline from elementRenderer.ts
+ * - Selection indicators for the active element
  */
 
-import { useRef, useEffect, useCallback, useState } from 'react';
-import { CANVAS_WIDTH, CANVAS_HEIGHT } from './utils';
+import { useRef, useEffect, useCallback, useMemo, useState } from 'react';
+import { getCanvasMetrics } from './utils';
 import { drawBackground } from './backgroundRenderer';
-import { renderAllElements, renderSelectionIndicator } from './elementRenderer';
-import { getElementAtPoint } from './hitDetectionNew';
+import { renderAllElements } from './elementRenderer';
+import { getElementAtPoint } from './hitDetection';
+import { isTextElement } from '@/context/studio-editor/elementTypes';
 import type { ScreenshotState } from '@/context/studio-editor/types';
+import type { CanvasElement } from '@/context/studio-editor/elementTypes';
+import type { GlobalSettings } from '@/context/studio-editor/types';
+import { cn } from '@/lib/utils';
+
+interface DragState {
+  startX: number;
+  startY: number;
+  elementIds: string[];
+  initialPositions: Map<string, { x: number; y: number }>;
+  hasMoved: boolean;
+}
 
 export interface MarketingImageCanvasProps {
   screenshot: ScreenshotState;
   index: number;
   totalImages: number;
   isSelected: boolean;
-  selectedElement: string | null;
+  selectedElementIds: string[];
+  primarySelectedElementId: string | null;
   isEditing: boolean;
-  onSelect: (index: number | null, elementId: string | null, multiSelectMode?: boolean) => void;
+  onSelect: (index: number | null, elementId: string | null) => void;
   onUpdatePosition: (index: number, elementId: string, position: { x: number; y: number }) => void;
   deviceFrameImage: HTMLImageElement | null;
-  global: {
-    backgroundType: 'gradient' | 'solid' | 'image';
-    backgroundSolid: string;
-    backgroundGradient: {
-      startColor: string;
-      endColor: string;
-      angle: number;
-    };
-    backgroundImage?: {
-      url: string;
-      fit?: 'cover' | 'contain' | 'fill' | 'tile';
-      opacity?: number;
-    };
-  };
+  global: GlobalSettings;
+  isCanvasSelected: boolean;
 }
 
-export function MarketingImageCanvas({ 
-  screenshot, 
+export function MarketingImageCanvas({
+  screenshot,
   index,
   totalImages,
-  isSelected, 
-  selectedElement,
+  isSelected,
+  selectedElementIds,
+  primarySelectedElementId,
   isEditing,
   onSelect,
   onUpdatePosition,
   deviceFrameImage,
-  global 
+  global,
+  isCanvasSelected,
 }: MarketingImageCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [screenshotImage, setScreenshotImage] = useState<HTMLImageElement | null>(null);
   const [backgroundImage, setBackgroundImage] = useState<HTMLImageElement | null>(null);
   const [imageCache] = useState<Map<string, HTMLImageElement>>(new Map());
+  const dragStateRef = useRef<DragState | null>(null);
+  const wasDraggingRef = useRef(false);
+  const selectionHandledInMouseDownRef = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
+  const metrics = useMemo(() => getCanvasMetrics(global.deviceFrame), [global.deviceFrame]);
+  const canvasWidth = metrics.width;
+  const canvasHeight = metrics.height;
 
-  // Load screenshot image
+  const primarySelectedElement: CanvasElement | null = useMemo(() => {
+    if (!primarySelectedElementId) return null;
+    return screenshot.elements?.find((el) => el.id === primarySelectedElementId) ?? null;
+  }, [primarySelectedElementId, screenshot.elements]);
+
+  const elementsToRender = useMemo(() => {
+    if (!isSelected || !isEditing || !primarySelectedElement || !isTextElement(primarySelectedElement)) {
+      return screenshot.elements ?? [];
+    }
+
+    return (screenshot.elements ?? []).filter((el) => el.id !== primarySelectedElement.id);
+  }, [isEditing, isSelected, primarySelectedElement, screenshot.elements]);
+
+  // ---------------------------------------------------------------------------
+  // Image loading
+  // ---------------------------------------------------------------------------
+
   useEffect(() => {
+  const imageUrl = screenshot.image.sourceScreenshotUrl;
+    if (!imageUrl) {
+      setScreenshotImage(null);
+      return;
+    }
+
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => setScreenshotImage(img);
-    img.onerror = () => console.error('Failed to load screenshot');
-    
-    const imageUrl = screenshot.image.sourceScreenshotUrl || screenshot.image.generatedImageUrl;
-    if (imageUrl) {
-      img.src = imageUrl;
-    }
+    img.onerror = () => {
+      console.error('Failed to load screenshot');
+      setScreenshotImage(null);
+    };
+    img.src = imageUrl;
+
+    return () => {
+      img.onload = null;
+      img.onerror = null;
+    };
   }, [screenshot.image]);
 
-  // Load background image when URL changes
   useEffect(() => {
     if (global.backgroundType === 'image' && global.backgroundImage?.url) {
       const img = new Image();
@@ -85,12 +116,20 @@ export function MarketingImageCanvas({
         setBackgroundImage(null);
       };
       img.src = global.backgroundImage.url;
-    } else {
-      setBackgroundImage(null);
+
+      return () => {
+        img.onload = null;
+        img.onerror = null;
+      };
     }
+
+    setBackgroundImage(null);
   }, [global.backgroundType, global.backgroundImage?.url]);
 
-  // Main render effect - uses unified rendering pipeline
+  // ---------------------------------------------------------------------------
+  // Rendering
+  // ---------------------------------------------------------------------------
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -98,181 +137,237 @@ export function MarketingImageCanvas({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    canvas.width = CANVAS_WIDTH;
-    canvas.height = CANVAS_HEIGHT;
+    const pixelRatio = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+    const targetWidth = canvasWidth * pixelRatio;
+    const targetHeight = canvasHeight * pixelRatio;
 
-    // Clear canvas
-    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+    }
 
-    // Async render function
+    ctx.save();
+    ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
     (async () => {
       try {
-        // Step 1: Draw background
-        // Cast to BackgroundConfig - the global object comes from context with all required fields
         drawBackground(
-          ctx, 
-          global as any, // TODO: Type properly once global state types are unified
-          CANVAS_WIDTH, 
-          CANVAS_HEIGHT, 
-          index, 
-          totalImages, 
+          ctx,
+          global,
+          canvasWidth,
+          canvasHeight,
+          index,
+          totalImages,
           backgroundImage
         );
 
-        // Step 2: Render all elements using unified pipeline
-        // Filter out the element being edited to prevent double rendering
-        const elementsToRender = (screenshot.elements || []).filter(el => {
-          // If editing a text element, don't render it on canvas (textarea will show instead)
-          if (isEditing && isSelected && selectedElement === el.id) {
-            return false;
-          }
-          return true;
-        });
-        
-        await renderAllElements(
-          ctx,
-          elementsToRender,
-          screenshotImage,
-          deviceFrameImage,
-          imageCache
-        );
-
-        // Step 3: Draw selection indicator for selected element (if not editing)
-        if (isSelected && selectedElement && !isEditing) {
-          const selectedElementData = screenshot.elements?.find(el => el.id === selectedElement);
-          if (selectedElementData) {
-            renderSelectionIndicator(ctx, selectedElementData);
-          }
-        }
+  await renderAllElements(ctx, elementsToRender, screenshotImage, deviceFrameImage, metrics, imageCache);
       } catch (error) {
         console.error('Error rendering canvas:', error);
+      } finally {
+        ctx.restore();
       }
     })();
   }, [
-    screenshot.elements,
-    screenshot.image,
-    screenshotImage,
-    deviceFrameImage,
     backgroundImage,
-    imageCache,
+    deviceFrameImage,
+    elementsToRender,
     global,
-    isSelected,
-    selectedElement,
-    isEditing,
+    imageCache,
     index,
-    totalImages
+    isEditing,
+    isSelected,
+    primarySelectedElementId,
+    screenshot.elements,
+    screenshotImage,
+    selectedElementIds,
+    totalImages,
+    canvasHeight,
+    canvasWidth,
+    metrics,
   ]);
 
-  // Handle click detection
-  const handleClick = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  // ---------------------------------------------------------------------------
+  // Event handlers
+  // ---------------------------------------------------------------------------
 
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    
-    const clickX = (event.clientX - rect.left) * scaleX;
-    const clickY = (event.clientY - rect.top) * scaleY;
-
-    // Check if Cmd (macOS) or Ctrl (Windows/Linux) key is pressed for multi-select
-    const multiSelectMode = event.metaKey || event.ctrlKey;
-
-    // Detect clicked element using unified hit detection
-    const clickedElementId = getElementAtPoint(
-      clickX,
-      clickY,
-      screenshot.elements || [],
-      canvas
-    );
-    
-    if (clickedElementId) {
-      onSelect(index, clickedElementId, multiSelectMode);
-    } else {
-      // Click outside - only clear if not in multi-select mode
-      if (!multiSelectMode) {
-        onSelect(null, null);
+  const handleClick = useCallback(
+    (event: React.MouseEvent<HTMLCanvasElement>) => {
+      if (wasDraggingRef.current) {
+        wasDraggingRef.current = false;
+        return;
       }
-    }
-  }, [screenshot.elements, index, onSelect]);
 
-  // Handle mouse down for dragging
-  const handleMouseDown = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+      if (selectionHandledInMouseDownRef.current) {
+        selectionHandledInMouseDownRef.current = false;
+        return;
+      }
 
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    
-    const clickX = (event.clientX - rect.left) * scaleX;
-    const clickY = (event.clientY - rect.top) * scaleY;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
 
-    // Check if clicking on an element
-    const hitElementId = getElementAtPoint(
-      clickX,
-      clickY,
-      screenshot.elements || [],
-      canvas
-    );
-    
-    if (hitElementId && isSelected && selectedElement === hitElementId) {
-      setIsDragging(true);
-      setDragStart({ x: clickX, y: clickY });
-    }
-  }, [isSelected, selectedElement, screenshot.elements]);
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvasWidth / rect.width;
+      const scaleY = canvasHeight / rect.height;
 
-  // Handle mouse move for dragging
-  const handleMouseMove = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDragging || !dragStart || !selectedElement) return;
+      const clickX = (event.clientX - rect.left) * scaleX;
+      const clickY = (event.clientY - rect.top) * scaleY;
 
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+      const clickedElementId = getElementAtPoint(
+        clickX,
+        clickY,
+        screenshot.elements || [],
+        canvas,
+        metrics
+      );
 
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    
-    const mouseX = (event.clientX - rect.left) * scaleX;
-    const mouseY = (event.clientY - rect.top) * scaleY;
+      if (clickedElementId) {
+        onSelect(index, clickedElementId);
+      } else {
+        onSelect(index, null);
+      }
+    },
+  [canvasHeight, canvasWidth, index, metrics, onSelect, screenshot.elements]
+  );
 
-    const deltaX = mouseX - dragStart.x;
-    const deltaY = mouseY - dragStart.y;
+  const handleMouseDown = useCallback(
+    (event: React.MouseEvent<HTMLCanvasElement>) => {
+      selectionHandledInMouseDownRef.current = false;
 
-    // Find the element being dragged
-    const element = screenshot.elements?.find(el => el.id === selectedElement);
-    if (!element) return;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
 
-    // Update position with delta
-    onUpdatePosition(index, selectedElement, {
-      x: element.position.x + deltaX,
-      y: element.position.y + deltaY,
-    });
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvasWidth / rect.width;
+      const scaleY = canvasHeight / rect.height;
 
-    setDragStart({ x: mouseX, y: mouseY });
-  }, [isDragging, dragStart, selectedElement, screenshot.elements, index, onUpdatePosition]);
+      const clickX = (event.clientX - rect.left) * scaleX;
+      const clickY = (event.clientY - rect.top) * scaleY;
+      const hitElementId = getElementAtPoint(
+        clickX,
+        clickY,
+        screenshot.elements || [],
+        canvas,
+        metrics
+      );
 
-  // Handle mouse up to end dragging
+      if (!isSelected || isEditing) {
+        dragStateRef.current = null;
+        return;
+      }
+
+      if (!hitElementId) {
+        dragStateRef.current = null;
+        return;
+      }
+
+      const isAlreadySelected = selectedElementIds.includes(hitElementId);
+
+      if (!isAlreadySelected) {
+        onSelect(index, hitElementId);
+        selectionHandledInMouseDownRef.current = true;
+      }
+
+      const elementIdsForDrag = isAlreadySelected
+        ? [...selectedElementIds]
+        : [hitElementId];
+
+      const initialPositions = new Map<string, { x: number; y: number }>();
+      elementIdsForDrag.forEach((id) => {
+        const element = screenshot.elements?.find((el) => el.id === id);
+        if (element) {
+          initialPositions.set(id, { ...element.position });
+        }
+      });
+
+      dragStateRef.current = {
+        startX: clickX,
+        startY: clickY,
+        elementIds: Array.from(initialPositions.keys()),
+        initialPositions,
+        hasMoved: false,
+      };
+
+      wasDraggingRef.current = false;
+
+      if (dragStateRef.current.elementIds.length > 0) {
+        setIsDragging(true);
+      }
+    },
+  [canvasHeight, canvasWidth, index, isEditing, isSelected, metrics, onSelect, screenshot.elements, selectedElementIds]
+  );
+
+  const handleMouseMove = useCallback(
+    (event: React.MouseEvent<HTMLCanvasElement>) => {
+      const dragState = dragStateRef.current;
+      if (!dragState || dragState.elementIds.length === 0 || isEditing) {
+        return;
+      }
+
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvasWidth / rect.width;
+      const scaleY = canvasHeight / rect.height;
+
+      const mouseX = (event.clientX - rect.left) * scaleX;
+      const mouseY = (event.clientY - rect.top) * scaleY;
+
+      const deltaX = mouseX - dragState.startX;
+      const deltaY = mouseY - dragState.startY;
+
+      if (!dragState.hasMoved && (Math.abs(deltaX) > 1 || Math.abs(deltaY) > 1)) {
+        dragState.hasMoved = true;
+        wasDraggingRef.current = true;
+      }
+
+      dragState.elementIds.forEach((elementId) => {
+        const initial = dragState.initialPositions.get(elementId);
+        if (!initial) return;
+
+        onUpdatePosition(index, elementId, {
+          x: initial.x + deltaX,
+          y: initial.y + deltaY,
+        });
+      });
+    },
+  [canvasHeight, canvasWidth, index, isEditing, onUpdatePosition]
+  );
+
   const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
-    setDragStart(null);
-  }, []);
+    dragStateRef.current = null;
+    if (isDragging) {
+      setIsDragging(false);
+    }
+    selectionHandledInMouseDownRef.current = false;
+  }, [isDragging]);
 
-  // Handle double-click to start editing text
-  const handleDoubleClick = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!selectedElement) return;
-    
-    // Only allow editing text elements
-    const element = screenshot.elements?.find(el => el.id === selectedElement);
-    if (!element || element.kind !== 'text') return;
-    
-    event.stopPropagation();
-    
-    // Dispatch custom event for inline text editing
-    window.dispatchEvent(new CustomEvent('startTextEditing', { 
-      detail: { screenshotIndex: index, elementId: selectedElement } 
-    }));
-  }, [selectedElement, screenshot.elements, index]);
+  const handleDoubleClick = useCallback(
+    (event: React.MouseEvent<HTMLCanvasElement>) => {
+      if (
+        !primarySelectedElement ||
+        !isSelected ||
+        isEditing ||
+        primarySelectedElement.kind !== 'text' ||
+        selectedElementIds.length !== 1
+      ) {
+        return;
+      }
+
+      event.stopPropagation();
+
+      window.dispatchEvent(
+        new CustomEvent('startTextEditing', {
+          detail: { screenshotIndex: index, elementId: primarySelectedElement.id },
+        })
+      );
+    },
+    [index, isEditing, isSelected, primarySelectedElement, selectedElementIds]
+  );
 
   return (
     <canvas
@@ -283,13 +378,18 @@ export function MarketingImageCanvas({
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
-      className={`shadow-lg rounded-lg transition-all ${
-        isDragging ? 'cursor-grabbing' : isSelected && selectedElement ? 'cursor-grab' : 'cursor-pointer'
-      }`}
+      className={cn(
+        'block  shadow-lg transition-all',
+        isCanvasSelected && 'ring-2 ring-blue-500 ring-offset-2 ring-offset-transparent',
+        isDragging
+          ? 'cursor-grabbing'
+          : isSelected && (primarySelectedElementId || selectedElementIds.length > 0)
+          ? 'cursor-grab'
+          : 'cursor-pointer'
+      )}
       style={{
-        width: '100%',
+        width: 'min(100%, 350px)',
         height: 'auto',
-        maxWidth: '350px',
       }}
     />
   );

@@ -7,7 +7,6 @@ import { useRef, useEffect, useState } from 'react';
 import { TransformControls } from '../TransformControls';
 
 interface VisualTransformControlsWrapperProps {
-  screenshot: any;
   index: number;
   visualId: string;
   centerX: number;
@@ -99,6 +98,7 @@ export function VisualTransformControlsWrapper({
         }}
         showRotationHandle={true}
         showScaleHandles={true}
+        showBoundingBox={true}
         minScale={0.1}
         maxScale={5.0}
       />

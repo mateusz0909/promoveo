@@ -22,7 +22,7 @@ export function Dropzone({ onFilesChange, initialFiles = [], device = 'iPhone' }
     setErrors([]);
   }, [device]);
 
-  const validateFile = (file: File): Promise<string | null> => {
+  const validateFile = useCallback((file: File): Promise<string | null> => {
     return new Promise((resolve) => {
       const img = new Image();
       
@@ -61,7 +61,7 @@ export function Dropzone({ onFilesChange, initialFiles = [], device = 'iPhone' }
       // Set src after setting up event handlers
       img.src = URL.createObjectURL(file);
     });
-  };
+  }, [device]);
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     console.log(`Processing ${acceptedFiles.length} files for ${device} device`);
@@ -118,7 +118,7 @@ export function Dropzone({ onFilesChange, initialFiles = [], device = 'iPhone' }
 
     setFiles(processedFiles);
     onFilesChange(processedFiles);
-  }, [files, onFilesChange, device]);
+  }, [files, onFilesChange, device, validateFile]);
 
   const removeFile = (fileToRemove: File) => {
     const updatedFiles = files.filter(file => file !== fileToRemove);

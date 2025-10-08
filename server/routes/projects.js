@@ -75,10 +75,4 @@ router.patch('/:projectId/images/:imageId/order', requireAuth, projectController
 // Replace source screenshot
 router.post('/:projectId/images/:imageId/replace-screenshot', requireAuth, upload.single('screenshot'), projectController.replaceSourceScreenshot);
 
-// Update project image (legacy endpoint)
-router.post('/:projectId/images/:imageId', requireAuth, upload.single('image'), projectController.updateProjectImage);
-
-// Save project (legacy endpoint)
-router.post('/save-legacy', requireAuth, projectController.saveProject);
-
 module.exports = router;

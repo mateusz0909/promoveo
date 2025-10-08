@@ -103,7 +103,8 @@ export default function GalleryUpload({
               actions.removeFile(fileItem.id);
               continue;
             }
-          } catch (_error) {
+          } catch (error) {
+            console.error('GalleryUpload: validation failed', error);
             newErrors.push(`Error validating file ${fileItem.file.name}`);
             actions.removeFile(fileItem.id);
             continue;
@@ -114,7 +115,8 @@ export default function GalleryUpload({
           try {
             const processedFile = await processFile(fileItem.file);
             actions.replaceFile(fileItem.id, processedFile);
-          } catch (_error) {
+          } catch (error) {
+            console.error('GalleryUpload: processing failed', error);
             newErrors.push(`Could not process file: ${fileItem.file.name}`);
             actions.removeFile(fileItem.id);
           }

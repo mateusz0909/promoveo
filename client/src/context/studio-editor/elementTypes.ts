@@ -5,6 +5,8 @@
  * All canvas elements (text, mockups, visuals) follow this unified model.
  */
 
+import { resolveDevicePreset } from '@/constants/devicePresets';
+
 // ============================================================================
 // Base Types
 // ============================================================================
@@ -50,6 +52,7 @@ export interface TextElement extends BaseElement {
   align: 'left' | 'center' | 'right';
   letterSpacing: number;
   lineHeight: number;
+  fontWeight: 300 | 400 | 500 | 600 | 700 | number;
   isBold: boolean;
   width?: number;          // Optional text frame width (for wrapping)
 }
@@ -126,6 +129,9 @@ export function createTextElement(
   position: Position,
   options: Partial<Omit<TextElement, 'id' | 'kind' | 'position'>> = {}
 ): TextElement {
+  const requestedFontWeight = options.fontWeight ?? (options.isBold ? 700 : 400);
+  const resolvedIsBold = options.isBold ?? (typeof requestedFontWeight === 'number' ? requestedFontWeight >= 600 : requestedFontWeight === 'bold');
+
   return {
     id: generateElementId('text'),
     kind: 'text',
@@ -140,8 +146,9 @@ export function createTextElement(
     align: 'left',
     letterSpacing: 0,
     lineHeight: 1.2,
-    isBold: false,
     ...options,
+    fontWeight: requestedFontWeight,
+    isBold: resolvedIsBold,
   };
 }
 
@@ -154,18 +161,32 @@ export function createMockupElement(
   position: Position,
   options: Partial<Omit<MockupElement, 'id' | 'kind' | 'position' | 'sourceScreenshotUrl' | 'frameType'>> = {}
 ): MockupElement {
+  const preset = resolveDevicePreset(frameType);
+  const {
+    baseWidth: baseWidthOverride,
+    baseHeight: baseHeightOverride,
+    scale: scaleOverride,
+    rotation: rotationOverride,
+    zIndex: zIndexOverride,
+    ...otherOptions
+  } = options;
+
+  const baseWidth = baseWidthOverride ?? preset.mockup.baseWidth;
+  const baseHeight = baseHeightOverride ?? preset.mockup.baseHeight;
+  const scale = scaleOverride ?? preset.mockup.defaultScale;
+
   return {
     id: generateElementId('mockup'),
     kind: 'mockup',
     position,
-    scale: 1,
-    rotation: 0,
-    zIndex: 0,
+    scale,
+    rotation: rotationOverride ?? 0,
+    zIndex: zIndexOverride ?? 0,
     sourceScreenshotUrl,
-    frameType,
-    baseWidth: 700,
-    baseHeight: 1400,
-    ...options,
+    frameType: preset.id,
+    baseWidth,
+    baseHeight,
+    ...otherOptions,
   };
 }
 

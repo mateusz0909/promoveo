@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { CheckCircleIcon, TrashIcon } from '@heroicons/react/24/outline';
-import { Loader2Icon } from 'lucide-react';
+import { Loader2Icon, PlusIcon } from 'lucide-react';
 import { useStudioEditor } from '@/context/StudioEditorContext';
 import { TextToolbar } from './TextToolbar';
 import { MockupToolbar } from './MockupToolbar';
@@ -7,17 +8,67 @@ import { Button } from '@/components/ui/button';
 import { isTextElement, isMockupElement, isVisualElement } from '@/context/studio-editor/elementTypes';
 
 export const EditorTopToolbar = () => {
-  const { selection, isSaving, deleteElement, getSelectedElement } = useStudioEditor();
+  const {
+    selection,
+    screenshots,
+    isSaving,
+    deleteElement,
+    removeScreenshot,
+    addScreenshot,
+    getSelectedElement,
+  } = useStudioEditor();
+
+  const [isProcessingScreenshot, setIsProcessingScreenshot] = useState<
+    'adding' | 'deleting' | null
+  >(null);
   
   const selectedElement = getSelectedElement();
   const hasTextSelection = selectedElement && isTextElement(selectedElement);
   const hasMockupSelection = selectedElement && isMockupElement(selectedElement);
   const hasVisualSelection = selectedElement && isVisualElement(selectedElement);
-  const hasAnySelection = selection.elementId !== null;
+  const hasElementSelection = selection.elementId !== null;
+  const hasScreenshotSelection = selection.screenshotIndex !== null;
+  const isCanvasSelected = hasScreenshotSelection && !hasElementSelection;
+  const hasNoSelection = selection.screenshotIndex === null;
+  const canAddScreenshot = screenshots.length < 10;
   
-  const handleDelete = () => {
+  const handleDeleteElement = () => {
     if (selection.screenshotIndex !== null && selection.elementId) {
       deleteElement(selection.screenshotIndex, selection.elementId);
+    }
+  };
+
+  const hasSelectionInInput = () => {
+    if (typeof document === 'undefined') return false;
+    const active = document.activeElement as HTMLElement | null;
+    if (!active) return false;
+    const tag = active.tagName;
+    return (
+      tag === 'INPUT' ||
+      tag === 'TEXTAREA' ||
+      active.contentEditable === 'true'
+    );
+  };
+
+  const handleDeleteScreenshot = async () => {
+    if (!isCanvasSelected || selection.screenshotIndex === null) return;
+
+    setIsProcessingScreenshot('deleting');
+    try {
+      await removeScreenshot(selection.screenshotIndex);
+    } finally {
+      setIsProcessingScreenshot(null);
+    }
+  };
+
+  const handleAddScreenshot = async () => {
+    if (!canAddScreenshot || hasSelectionInInput()) return;
+
+    setIsProcessingScreenshot('adding');
+    try {
+      await addScreenshot();
+    } finally {
+      setIsProcessingScreenshot(null);
     }
   };
 
@@ -43,9 +94,14 @@ export const EditorTopToolbar = () => {
       
       {/* Center: Context-aware controls */}
       <div className="flex-1 flex items-center justify-center">
-        {!selection.elementId && (
+        {hasNoSelection && (
           <p className="text-sm text-muted-foreground">
-            Click on text or screenshot to edit
+            Select a canvas to edit or add a new App Store image.
+          </p>
+        )}
+        {isCanvasSelected && (
+          <p className="text-sm text-muted-foreground">
+            Canvas selected – delete to remove this image or add elements.
           </p>
         )}
         
@@ -58,20 +114,53 @@ export const EditorTopToolbar = () => {
         )}
       </div>
 
-      {/* Right: Delete button */}
-      {hasAnySelection && (
-        <div className="flex-shrink-0">
+      <div className="flex items-center gap-2 flex-shrink-0">
+        {hasElementSelection && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleDeleteElement}
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            aria-label="Delete element"
+          >
+            <TrashIcon className="h-4 w-4" />
+          </Button>
+        )}
+
+        {isCanvasSelected && (
           <Button
             variant="ghost"
             size="sm"
-            onClick={handleDelete}
+            onClick={handleDeleteScreenshot}
+            disabled={isProcessingScreenshot === 'deleting'}
             className="text-destructive hover:text-destructive hover:bg-destructive/10"
           >
-            <TrashIcon className="h-4 w-4 mr-2" />
-            Delete
+            {isProcessingScreenshot === 'deleting' ? (
+              <Loader2Icon className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <TrashIcon className="h-4 w-4 mr-2" />
+            )}
+            Delete image
           </Button>
-        </div>
-      )}
+        )}
+
+        {hasNoSelection && (
+          <Button
+            variant="default"
+            size="sm"
+            onClick={handleAddScreenshot}
+            disabled={!canAddScreenshot || isProcessingScreenshot === 'adding'}
+            className="gap-2"
+          >
+            {isProcessingScreenshot === 'adding' ? (
+              <Loader2Icon className="h-4 w-4 animate-spin" />
+            ) : (
+              <PlusIcon className="h-4 w-4" />
+            )}
+            Add App Store image
+          </Button>
+        )}
+      </div>
     </div>
   );
 };
